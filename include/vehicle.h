@@ -2,6 +2,9 @@
 #define VEHICLE_H
 
 #include "car_state.h"
+#include "connector.h"
+
+struct SimContext;
 
 typedef struct Vehicle {
     int id;
@@ -18,5 +21,9 @@ typedef struct Vehicle {
 
     struct Charger* charger;
 } Vehicle;
+
+void vehicle_on_tick(void* self, struct SimContext* sim);
+
+double vehicle_charge(Vehicle* vehicle, double energy);
 
 #endif //VEHICLE_H
