@@ -1,0 +1,10 @@
+#ifndef DISTRIBUTION_STRATEGY_H
+#define DISTRIBUTION_STRATEGY_H
+
+typedef enum {
+    DIST_UNIFORM,
+    DIST_PRIORITY,
+    DIST_ADAPTIVE
+} DistributionStrategy;
+
+#endif //DISTRIBUTION_STRATEGY_H

@@ -1,0 +1,10 @@
+#ifndef SELECTION_STRATEGY_H
+#define SELECTION_STRATEGY_H
+
+typedef enum {
+    SELECT_FIRST_FIT,
+    SELECT_MAX_POWER,
+    SELECT_MIN_POWER
+} SelectionStrategy;
+
+#endif //SELECTION_STRATEGY_H
