@@ -4,6 +4,7 @@
 #include "vehicle.h"
 #include "station.h"
 #include "logger.h"
+#include "config.h"
 #include "run_mode.h"
 #include "tick_order.h"
 #include "error_code.h"
@@ -19,21 +20,15 @@ typedef struct TickSubscriber {
 } TickSubscriber;
 
 typedef struct SimContext {
-    int arrival_min_time;
-    int arrival_max_time;
-    int max_wait_time;
-
     double tick_duration;
     int display_delay_ms;
 
     RunMode mode;
     int period_time;
 
-    int cars_count;
-    unsigned int seed;
-
     int now;
     Vehicle* cars;
+    int cars_count;
 
     TickSubscriber* subscribers;
     int subscribers_count;
@@ -43,7 +38,7 @@ typedef struct SimContext {
     Logger* logger;
 } SimContext;
 
-ErrorCode sim_init(SimContext* sim, int argc, char** argv);
+ErrorCode sim_init(SimContext* sim, const Config* config, Station* station, Logger* logger);
 void sim_destroy(SimContext* sim);
 
 ErrorCode sim_subscribe(SimContext* sim, void* self, TickHandler handler, TickOrder order);

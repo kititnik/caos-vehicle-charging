@@ -9,6 +9,8 @@ add_executable(caos_vehicle_charging
         src/vehicle.c
         src/charger.c
         src/station.c
+        src/config.c
+        src/config_file.c
 )
 
 target_include_directories(caos_vehicle_charging
