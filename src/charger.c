@@ -46,15 +46,19 @@ void charger_detach(Charger* charger) {
     charger->allocated_power = 0;
 }
 
-double charger_accept_power(Charger* charger, double power) {
-    double limit = 0;
-    if (charger->vehicle != NULL) {
-        limit = charger->max_power;
-        if (charger->vehicle->max_power < limit) {
-            limit = charger->vehicle->max_power;
-        }
+double charger_get_max_accepted_power(const Charger* charger) {
+    if (charger->vehicle == NULL) {
+        return 0;
     }
-    charger->allocated_power = power < limit ? power : limit;
+    if (charger->vehicle->max_power < charger->max_power) {
+        return charger->vehicle->max_power;
+    }
+    return charger->max_power;
+}
+
+double charger_accept_power(Charger* charger, double power) {
+    double max_power = charger_get_max_accepted_power(charger);
+    charger->allocated_power = power < max_power ? power : max_power;
     return charger->allocated_power;
 }
 

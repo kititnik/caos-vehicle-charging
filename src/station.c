@@ -4,11 +4,16 @@
 
 #include "sim_context.h"
 
+#define EPS 1e-9
+
 static int is_compatible(const Station* station, const Vehicle* vehicle);
 static Charger* find_free_charger(Station* station, const Vehicle* vehicle);
 static void remove_from_queue(Station* station, int index);
 static void assign_chargers(Station* station);
 static void distribute_power(Station* station);
+static void distribute_weighted(Station* station);
+static void distribute_priority(Station* station);
+static double charger_weight(const Station* station, const Charger* charger);
 
 ErrorCode station_init(Station* station, const Config* config) {
     if (station == NULL || config == NULL) {
@@ -108,20 +113,73 @@ static void assign_chargers(Station* station) {
 }
 
 static void distribute_power(Station* station) {
-    int active_count = 0;
     for (int i = 0; i < station->chargers_count; i++) {
-        if (!charger_is_free(&station->chargers[i])) {
-            active_count++;
-        }
+        charger_accept_power(&station->chargers[i], 0);
     }
+    if (station->distribution_strategy == DIST_PRIORITY) {
+        distribute_priority(station);
+    } else {
+        distribute_weighted(station);
+    }
+}
 
+static void distribute_weighted(Station* station) {
     double remaining = station->power_limit;
-    for (int i = 0; i < station->chargers_count; i++) {
-        Charger* charger = &station->chargers[i];
-        if (charger_is_free(charger)) {
-            continue;
+    int has_leftover = 1;
+    while (has_leftover && remaining > EPS) {
+        has_leftover = 0;
+        double total_weight = 0;
+        for (int i = 0; i < station->chargers_count; i++) {
+            Charger* charger = &station->chargers[i];
+            if (!charger_is_free(charger) && charger->allocated_power < charger_get_max_accepted_power(charger) - EPS) {
+                total_weight += charger_weight(station, charger);
+            }
         }
-        remaining -= charger_accept_power(charger, remaining / active_count);
-        active_count--;
+        if (total_weight <= EPS) {
+            return;
+        }
+
+        double given = 0;
+        for (int i = 0; i < station->chargers_count; i++) {
+            Charger* charger = &station->chargers[i];
+            if (charger_is_free(charger) || charger->allocated_power >= charger_get_max_accepted_power(charger) - EPS) {
+                continue;
+            }
+            double before = charger->allocated_power;
+            double wanted = before + remaining * charger_weight(station, charger) / total_weight;
+            double after = charger_accept_power(charger, wanted);
+            given += after - before;
+            if (after < wanted - EPS) {
+                has_leftover = 1;
+            }
+        }
+        remaining -= given;
     }
+}
+
+static void distribute_priority(Station* station) {
+    double remaining = station->power_limit;
+    while (remaining > EPS) {
+        Charger* first = NULL;
+        for (int i = 0; i < station->chargers_count; i++) {
+            Charger* charger = &station->chargers[i];
+            if (charger_is_free(charger) || charger->allocated_power > 0) {
+                continue;
+            }
+            if (first == NULL || charger->vehicle->arrival_time < first->vehicle->arrival_time) {
+                first = charger;
+            }
+        }
+        if (first == NULL) {
+            return;
+        }
+        remaining -= charger_accept_power(first, remaining);
+    }
+}
+
+static double charger_weight(const Station* station, const Charger* charger) {
+    if (station->distribution_strategy == DIST_ADAPTIVE) {
+        return charger->vehicle->target_charge - charger->vehicle->current_charge;
+    }
+    return 1;
 }

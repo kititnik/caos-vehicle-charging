@@ -2,25 +2,13 @@
 #include <string.h>
 
 #include "config_file.h"
+#include "sim_context.h"
 
-static const char* config_error_message(ErrorCode error) {
-    switch (error) {
-        case ERR_FILE_OPEN:
-            return "cannot open file";
-        case ERR_FILE_READ:
-            return "cannot read file";
-        case ERR_OUT_OF_MEMORY:
-            return "out of memory";
-        case ERR_CONFIG_SYNTAX:
-            return "syntax error";
-        case ERR_CONFIG_VALUE:
-            return "invalid value";
-        case ERR_CONFIG_MISSING:
-            return "missing required parameters";
-        default:
-            return "unknown error";
-    }
-}
+static const char* config_error_message(ErrorCode error);
+static ErrorCode subscribe_all(SimContext* sim, Config* config, Station* station);
+static void print_tick(const SimContext* sim);
+
+static const char* const car_state_names[] = {"PENDING", "QUEUED", "CHARGING", "DONE", "TIMED_OUT", "INCOMPATIBLE"};
 
 int main(int argc, char** argv) {
     if (argc != 3 || strcmp(argv[1], "--config") != 0) {
@@ -41,6 +29,83 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    Station station;
+    if (station_init(&station, &config) != ERR_OK) {
+        fprintf(stderr, "cannot initialize station\n");
+        config_destroy(&config);
+        return 1;
+    }
+
+    SimContext sim;
+    if (sim_init(&sim, &config, &station, NULL) != ERR_OK) {
+        fprintf(stderr, "cannot initialize simulation\n");
+        station_destroy(&station);
+        config_destroy(&config);
+        return 1;
+    }
+    if (subscribe_all(&sim, &config, &station) != ERR_OK) {
+        fprintf(stderr, "cannot subscribe participants\n");
+        sim_destroy(&sim);
+        station_destroy(&station);
+        config_destroy(&config);
+        return 1;
+    }
+
+    while (!sim_is_finished(&sim)) {
+        sim_tick(&sim);
+        print_tick(&sim);
+    }
+
+    sim_destroy(&sim);
+    station_destroy(&station);
     config_destroy(&config);
     return 0;
+}
+
+static ErrorCode subscribe_all(SimContext* sim, Config* config, Station* station) {
+    ErrorCode error = ERR_OK;
+    for (int i = 0; i < config->cars_count && error == ERR_OK; i++) {
+        error = sim_subscribe(sim, &config->cars[i], vehicle_on_tick, ORDER_VEHICLE);
+    }
+    if (error == ERR_OK) {
+        error = sim_subscribe(sim, station, station_on_tick, ORDER_STATION);
+    }
+    for (int i = 0; i < config->chargers_count && error == ERR_OK; i++) {
+        error = sim_subscribe(sim, &config->chargers[i], charger_on_tick, ORDER_CHARGER);
+    }
+    return error;
+}
+
+static void print_tick(const SimContext* sim) {
+    printf("t=%d:", sim->now-1);
+    for (int i = 0; i < sim->cars_count; i++) {
+        const Vehicle* vehicle = &sim->cars[i];
+        printf(" car%d %s %.1f/%.1f", vehicle->id, car_state_names[vehicle->car_state],
+               vehicle->current_charge, vehicle->target_charge);
+    }
+    printf("\n");
+    for (int i = 0; i < sim->station->chargers_count; i++) {
+        const Charger* charger = &sim->station->chargers[i];
+        printf(" ch%d %.1fkW", charger->id, charger->allocated_power);
+    }
+    printf("\n");
+}
+
+static const char* config_error_message(ErrorCode error) {
+    switch (error) {
+        case ERR_FILE_OPEN:
+            return "cannot open file";
+        case ERR_FILE_READ:
+            return "cannot read file";
+        case ERR_OUT_OF_MEMORY:
+            return "out of memory";
+        case ERR_CONFIG_SYNTAX:
+            return "syntax error";
+        case ERR_CONFIG_VALUE:
+            return "invalid value";
+        case ERR_CONFIG_MISSING:
+            return "missing required parameters";
+        default:
+            return "unknown error";
+    }
 }

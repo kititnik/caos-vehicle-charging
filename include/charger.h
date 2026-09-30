@@ -24,6 +24,7 @@ int charger_is_compatible(const Charger* charger, const struct Vehicle* vehicle)
 ErrorCode charger_attach(Charger* charger, struct Vehicle* vehicle);
 void charger_detach(Charger* charger);
 
+double charger_get_max_accepted_power(const Charger* charger);
 double charger_accept_power(Charger* charger, double power);
 double charger_get_power(const Charger* charger);
 
