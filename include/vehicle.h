@@ -24,6 +24,6 @@ typedef struct Vehicle {
 
 void vehicle_on_tick(void* self, struct SimContext* sim);
 
-double vehicle_charge(Vehicle* vehicle, double energy);
+int vehicle_charge(Vehicle* vehicle, double energy);
 
 #endif //VEHICLE_H

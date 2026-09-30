@@ -29,7 +29,7 @@ void station_destroy(Station* station);
 
 void station_on_tick(void* self, struct SimContext* sim);
 
-ErrorCode station_request_charger(Station* station, Vehicle* vehicle, const Logger* logger, int now);
+ErrorCode station_request_charger(Station* station, Vehicle* vehicle);
 ErrorCode station_leave_queue(Station* station, Vehicle* vehicle);
 
 #endif //STATION_H
