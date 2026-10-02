@@ -1,3 +1,4 @@
+#include <signal.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -7,6 +8,9 @@
 
 static const char* config_error_message(ErrorCode error);
 static ErrorCode subscribe_all(SimContext* sim, Config* config, Station* station);
+static void on_interrupt(int signum);
+
+static volatile sig_atomic_t interrupted = 0;
 
 int main(int argc, char** argv) {
     if (argc != 3 || strcmp(argv[1], "--config") != 0) {
@@ -58,17 +62,28 @@ int main(int argc, char** argv) {
         config_destroy(&config);
         return 1;
     }
+    if (signal(SIGINT, on_interrupt) == SIG_ERR) {
+        fprintf(stderr, "cannot install interrupt handler\n");
+        sim_destroy(&sim);
+        station_destroy(&station);
+        logger_close(&logger);
+        config_destroy(&config);
+        return 1;
+    }
 
-    while (!sim_is_finished(&sim)) {
+    while (!interrupted && !sim_is_finished(&sim)) {
         sim_tick(&sim);
         usleep(sim.display_delay_ms * 1000);
+    }
+    if (interrupted) {
+        logger_write(&logger, "моделирование прервано пользователем");
     }
 
     sim_destroy(&sim);
     station_destroy(&station);
     logger_close(&logger);
     config_destroy(&config);
-    return 0;
+    return interrupted ? 128 + SIGINT : 0;
 }
 
 static ErrorCode subscribe_all(SimContext* sim, Config* config, Station* station) {
@@ -83,6 +98,10 @@ static ErrorCode subscribe_all(SimContext* sim, Config* config, Station* station
         error = sim_subscribe(sim, &config->chargers[i], charger_on_tick, ORDER_CHARGER);
     }
     return error;
+}
+
+static void on_interrupt(int signum) {
+    interrupted = 1;
 }
 
 static const char* config_error_message(ErrorCode error) {
