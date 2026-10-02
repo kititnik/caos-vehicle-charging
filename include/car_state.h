@@ -7,7 +7,8 @@ typedef enum {
     CAR_CHARGING,
     CAR_DONE,
     CAR_TIMED_OUT,
-    CAR_INCOMPATIBLE
+    CAR_INCOMPATIBLE,
+    CAR_STATE_COUNT
 } CarState;
 
 #endif //CAR_STATE_H

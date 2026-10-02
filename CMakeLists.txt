@@ -13,6 +13,7 @@ add_executable(caos_vehicle_charging
         src/config_file.c
         src/sim_context.c
         src/logger.c
+        src/stats.c
 )
 
 target_include_directories(caos_vehicle_charging

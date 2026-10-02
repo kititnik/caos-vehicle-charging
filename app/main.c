@@ -5,10 +5,12 @@
 
 #include "config_file.h"
 #include "sim_context.h"
+#include "stats.h"
 
 static const char* config_error_message(ErrorCode error);
 static ErrorCode subscribe_all(SimContext* sim, Config* config, Station* station);
 static void on_interrupt(int signum);
+static const char* end_reason(const SimContext* sim);
 
 static volatile sig_atomic_t interrupted = 0;
 
@@ -78,6 +80,7 @@ int main(int argc, char** argv) {
     if (interrupted) {
         logger_write(&logger, "моделирование прервано пользователем");
     }
+    stats_print(&sim, end_reason(&sim));
 
     sim_destroy(&sim);
     station_destroy(&station);
@@ -98,6 +101,16 @@ static ErrorCode subscribe_all(SimContext* sim, Config* config, Station* station
         error = sim_subscribe(sim, &config->chargers[i], charger_on_tick, ORDER_CHARGER);
     }
     return error;
+}
+
+static const char* end_reason(const SimContext* sim) {
+    if (interrupted) {
+        return "прервано пользователем";
+    }
+    if (sim->mode == MODE_LIMITED && sim->now >= sim->period_time) {
+        return "окончание периода";
+    }
+    return "все машины обслужены";
 }
 
 static void on_interrupt(int signum) {
