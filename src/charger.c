@@ -11,9 +11,14 @@ void charger_on_tick(void* self, SimContext* sim) {
     if (vehicle == NULL) {
         return;
     }
-    if (vehicle_charge(vehicle, charger->allocated_power * sim->tick_duration)) {
+    int is_charged = vehicle_charge(vehicle, charger->allocated_power * sim->tick_duration);
+    logger_write(sim->logger, "машина %d: заряд %.1f / %.1f кВт·ч", vehicle->id,
+                 vehicle->current_charge, vehicle->target_charge);
+    if (is_charged) {
         vehicle->car_state = CAR_DONE;
         charger_detach(charger);
+        logger_write(sim->logger, "машина %d зарядилась", vehicle->id);
+        logger_write(sim->logger, "устройство %d освободилось", charger->id);
     }
 }
 

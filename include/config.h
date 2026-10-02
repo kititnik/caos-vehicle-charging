@@ -24,6 +24,8 @@ typedef struct Config {
 
     RunMode mode;
     int period_time;
+
+    char* log_path;
 } Config;
 
 void config_destroy(Config* config);

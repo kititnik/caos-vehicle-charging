@@ -15,7 +15,7 @@ static void distribute_weighted(Station* station);
 static void distribute_priority(Station* station);
 static double charger_weight(const Station* station, const Charger* charger);
 
-ErrorCode station_init(Station* station, const Config* config) {
+ErrorCode station_init(Station* station, const Config* config, const Logger* logger) {
     if (station == NULL || config == NULL) {
         return ERR_NULL_ARGUMENT;
     }
@@ -30,6 +30,7 @@ ErrorCode station_init(Station* station, const Config* config) {
     station->power_limit = config->power_limit;
     station->distribution_strategy = config->distribution_strategy;
     station->selection_strategy = config->selection_strategy;
+    station->logger = logger;
     return ERR_OK;
 }
 
@@ -105,6 +106,7 @@ static void assign_chargers(Station* station) {
         Vehicle* vehicle = station->cars_queue[i];
         Charger* charger = find_free_charger(station, vehicle);
         if (charger != NULL && charger_attach(charger, vehicle) == ERR_OK) {
+            logger_write(station->logger, "машине %d назначено устройство %d", vehicle->id, charger->id);
             remove_from_queue(station, i);
         } else {
             i++;
@@ -120,6 +122,12 @@ static void distribute_power(Station* station) {
         distribute_priority(station);
     } else {
         distribute_weighted(station);
+    }
+    for (int i = 0; i < station->chargers_count; i++) {
+        Charger* charger = &station->chargers[i];
+        if (!charger_is_free(charger)) {
+            logger_write(station->logger, "устройство %d: выделено %.1f кВт", charger->id, charger->allocated_power);
+        }
     }
 }
 

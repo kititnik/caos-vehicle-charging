@@ -9,6 +9,7 @@ void config_destroy(Config* config) {
 
     free(config->chargers);
     free(config->cars);
+    free(config->log_path);
 
     *config = (Config){0};
 }

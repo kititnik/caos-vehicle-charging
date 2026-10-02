@@ -40,6 +40,7 @@ static ErrorCode parse_display_delay(Config* config, char** save);
 static ErrorCode parse_distribution(Config* config, char** save);
 static ErrorCode parse_selection(Config* config, char** save);
 static ErrorCode parse_mode(Config* config, char** save);
+static ErrorCode parse_log(Config* config, char** save);
 
 static const char* const distribution_names[] = {"uniform", "priority", "adaptive"};
 static const char* const selection_names[] = {"first_fit", "max_power", "min_power"};
@@ -61,7 +62,8 @@ static const KeyParser key_parsers[] = {
     {"display_delay", parse_display_delay},
     {"distribution", parse_distribution},
     {"selection", parse_selection},
-    {"mode", parse_mode}
+    {"mode", parse_mode},
+    {"log", parse_log}
 };
 
 ErrorCode config_file_load(Config* config, const char* path, int* error_line) {
@@ -312,4 +314,14 @@ static ErrorCode parse_mode(Config* config, char** save) {
         return ERR_OK;
     }
     return ERR_CONFIG_SYNTAX;
+}
+
+static ErrorCode parse_log(Config* config, char** save) {
+    char* path = next_token(save);
+    if (path == NULL) {
+        return ERR_CONFIG_SYNTAX;
+    }
+    free(config->log_path);
+    config->log_path = strdup(path);
+    return config->log_path != NULL ? ERR_OK : ERR_OUT_OF_MEMORY;
 }

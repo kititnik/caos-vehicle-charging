@@ -22,9 +22,11 @@ typedef struct Station {
     double power_limit;
     DistributionStrategy distribution_strategy;
     SelectionStrategy selection_strategy;
+
+    const Logger* logger;
 } Station;
 
-ErrorCode station_init(Station* station, const Config* config);
+ErrorCode station_init(Station* station, const Config* config, const Logger* logger);
 void station_destroy(Station* station);
 
 void station_on_tick(void* self, struct SimContext* sim);
