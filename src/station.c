@@ -8,6 +8,7 @@
 
 static int is_compatible(const Station* station, const Vehicle* vehicle);
 static Charger* find_free_charger(Station* station, const Vehicle* vehicle);
+static int is_better_charger(const Station* station, const Charger* candidate, const Charger* best);
 static void remove_from_queue(Station* station, int index);
 static void assign_chargers(Station* station);
 static void distribute_power(Station* station);
@@ -84,13 +85,28 @@ static int is_compatible(const Station* station, const Vehicle* vehicle) {
 }
 
 static Charger* find_free_charger(Station* station, const Vehicle* vehicle) {
+    Charger* best = NULL;
     for (int i = 0; i < station->chargers_count; i++) {
         Charger* charger = &station->chargers[i];
-        if (charger_is_free(charger) && charger_is_compatible(charger, vehicle)) {
-            return charger;
+        if (!charger_is_free(charger) || !charger_is_compatible(charger, vehicle)) {
+            continue;
+        }
+        if (best == NULL || is_better_charger(station, charger, best)) {
+            best = charger;
         }
     }
-    return NULL;
+    return best;
+}
+
+static int is_better_charger(const Station* station, const Charger* candidate, const Charger* best) {
+    switch (station->selection_strategy) {
+        case SELECT_MAX_POWER:
+            return candidate->max_power > best->max_power;
+        case SELECT_MIN_POWER:
+            return candidate->max_power < best->max_power;
+        default:
+            return 0;
+    }
 }
 
 static void remove_from_queue(Station* station, int index) {
