@@ -11,6 +11,7 @@
 
 typedef struct SimContext SimContext;
 
+// called once per tick, self is the observer
 typedef void (*TickHandler)(void* self, SimContext* sim);
 
 typedef struct TickSubscriber {

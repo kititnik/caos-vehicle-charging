@@ -6,6 +6,7 @@
 typedef struct Logger {
     int console_fd;
     int file_fd;
+    // points at sim.now for timestamps
     const int* now;
 } Logger;
 

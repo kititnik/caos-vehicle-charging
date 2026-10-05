@@ -4,6 +4,7 @@
 
 #define EPS 1e-9
 
+// arrive on arrival tick, leave the queue after deadline
 void vehicle_on_tick(void* self, SimContext* sim) {
     Vehicle* vehicle = (Vehicle*)self;
     if (vehicle->car_state == CAR_PENDING && vehicle->arrival_time == sim->now) {
@@ -22,6 +23,7 @@ void vehicle_on_tick(void* self, SimContext* sim) {
     }
 }
 
+// add energy, clamp to target, returns 1 when full
 int vehicle_charge(Vehicle* vehicle, double energy) {
     vehicle->current_charge += energy;
     if (vehicle->current_charge >= vehicle->target_charge - EPS) {

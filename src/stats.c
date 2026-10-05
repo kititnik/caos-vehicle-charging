@@ -2,6 +2,7 @@
 
 #include "logger.h"
 
+// count cars by final state and dump a summary to the log
 void stats_print(const SimContext* sim, const char* reason) {
     static const char* const car_state_names[CAR_STATE_COUNT] = {
         "не приехала", "в очереди", "заряжается", "зарядилась", "ушла по тайм-ауту", "несовместима"

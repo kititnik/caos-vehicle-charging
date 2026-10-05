@@ -10,6 +10,7 @@
 
 #define TOKEN_DELIMITERS " \n"
 
+// parses the rest of the line for one key
 typedef ErrorCode (*KeyHandler)(Config* config, char** save);
 
 typedef struct KeyParser {
@@ -53,6 +54,7 @@ static const ConnectorName connector_names[] = {
     {"TESLA_NACS", TESLA_NACS}
 };
 
+// config key -> parser
 static const KeyParser key_parsers[] = {
     {"charger", parse_charger},
     {"car", parse_car},
@@ -66,6 +68,7 @@ static const KeyParser key_parsers[] = {
     {"log", parse_log}
 };
 
+// read config line by line
 ErrorCode config_file_load(Config* config, const char* path, int* error_line) {
     if (config == NULL || path == NULL) {
         return ERR_NULL_ARGUMENT;
@@ -107,6 +110,7 @@ ErrorCode config_file_load(Config* config, const char* path, int* error_line) {
     return error;
 }
 
+// cut off comment, dispatch by first word
 static ErrorCode parse_line(Config* config, char* line) {
     char* comment = strchr(line, '#');
     if (comment != NULL) {
@@ -137,6 +141,7 @@ static char* next_token(char** save) {
     return strtok_r(NULL, TOKEN_DELIMITERS, save);
 }
 
+// strtod, whole token must be a number
 static int parse_double(const char* token, double* value) {
     if (token == NULL) {
         return 0;
@@ -150,6 +155,7 @@ static int parse_double(const char* token, double* value) {
     return 1;
 }
 
+// strtol plus int range check
 static int parse_int(const char* token, int* value) {
     if (token == NULL) {
         return 0;
@@ -163,6 +169,7 @@ static int parse_int(const char* token, int* value) {
     return 1;
 }
 
+// index of name in list, -1 if not there
 static int find_name(const char* const* names, int count, const char* name) {
     if (name == NULL) {
         return -1;
@@ -187,6 +194,7 @@ static int parse_connector(const char* name) {
     return 0;
 }
 
+// "A,B,C" -> bitmask, 0 if any name is bad
 static unsigned int parse_connectors(char* list) {
     unsigned int mask = 0;
     char* save = NULL;
@@ -200,6 +208,7 @@ static unsigned int parse_connectors(char* list) {
     return mask;
 }
 
+// charger <connector> <kw>
 static ErrorCode parse_charger(Config* config, char** save) {
     char* name = next_token(save);
     double max_power;
@@ -227,6 +236,7 @@ static ErrorCode parse_charger(Config* config, char** save) {
     return ERR_OK;
 }
 
+// car <connectors> <kwh> <start %> <target %> <kw> <arrival tick>
 static ErrorCode parse_car(Config* config, char** save) {
     char* names = next_token(save);
     double capacity, start_percent, target_percent, max_power;
@@ -266,22 +276,27 @@ static ErrorCode parse_car(Config* config, char** save) {
     return ERR_OK;
 }
 
+// power_limit <kw>
 static ErrorCode parse_power_limit(Config* config, char** save) {
     return parse_double(next_token(save), &config->power_limit) ? ERR_OK : ERR_CONFIG_SYNTAX;
 }
 
+// max_wait <ticks>
 static ErrorCode parse_max_wait(Config* config, char** save) {
     return parse_int(next_token(save), &config->max_wait_time) ? ERR_OK : ERR_CONFIG_SYNTAX;
 }
 
+// tick <hours>
 static ErrorCode parse_tick(Config* config, char** save) {
     return parse_double(next_token(save), &config->tick_duration) ? ERR_OK : ERR_CONFIG_SYNTAX;
 }
 
+// display_delay <ms>
 static ErrorCode parse_display_delay(Config* config, char** save) {
     return parse_int(next_token(save), &config->display_delay_ms) ? ERR_OK : ERR_CONFIG_SYNTAX;
 }
 
+// distribution uniform|priority|adaptive
 static ErrorCode parse_distribution(Config* config, char** save) {
     int index = find_name(distribution_names, ARRAY_SIZE(distribution_names), next_token(save));
     if (index < 0) {
@@ -291,6 +306,7 @@ static ErrorCode parse_distribution(Config* config, char** save) {
     return ERR_OK;
 }
 
+// selection first_fit|max_power|min_power
 static ErrorCode parse_selection(Config* config, char** save) {
     int index = find_name(selection_names, ARRAY_SIZE(selection_names), next_token(save));
     if (index < 0) {
@@ -300,6 +316,7 @@ static ErrorCode parse_selection(Config* config, char** save) {
     return ERR_OK;
 }
 
+// mode unlimited, or mode limited <ticks>
 static ErrorCode parse_mode(Config* config, char** save) {
     char* name = next_token(save);
     if (name == NULL) {
@@ -316,6 +333,7 @@ static ErrorCode parse_mode(Config* config, char** save) {
     return ERR_CONFIG_SYNTAX;
 }
 
+// log <path>
 static ErrorCode parse_log(Config* config, char** save) {
     char* path = next_token(save);
     if (path == NULL) {

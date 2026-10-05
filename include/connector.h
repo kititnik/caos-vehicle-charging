@@ -1,6 +1,7 @@
 #ifndef CONNECTOR_H
 #define CONNECTOR_H
 
+// bit flags so a car can have several connectors
 typedef enum {
     TYPE_1 = 1 << 0,
     TYPE_2 = 1 << 1,

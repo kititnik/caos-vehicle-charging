@@ -5,6 +5,7 @@
 
 #define INITIAL_SUBSCRIBERS_CAPACITY 16
 
+// copy settings from config and compute queue deadlines
 ErrorCode sim_init(SimContext* sim, const Config* config, Station* station, Logger* logger) {
     if (sim == NULL || config == NULL || station == NULL) {
         return ERR_NULL_ARGUMENT;
@@ -45,6 +46,7 @@ void sim_destroy(SimContext* sim) {
     sim->subscribers_capacity = 0;
 }
 
+// add a tick handler, list is sorted by order
 ErrorCode sim_subscribe(SimContext* sim, void* self, TickHandler handler, TickOrder order) {
     if (sim == NULL || self == NULL || handler == NULL) {
         return ERR_NULL_ARGUMENT;
@@ -63,6 +65,7 @@ ErrorCode sim_subscribe(SimContext* sim, void* self, TickHandler handler, TickOr
         sim->subscribers_capacity = capacity;
     }
 
+    // insertion sort step, shift bigger orders right
     int i = sim->subscribers_count;
     while (i > 0 && sim->subscribers[i - 1].order > order) {
         sim->subscribers[i] = sim->subscribers[i - 1];
@@ -75,6 +78,7 @@ ErrorCode sim_subscribe(SimContext* sim, void* self, TickHandler handler, TickOr
     return ERR_OK;
 }
 
+// call every handler once, then move time forward
 void sim_tick(SimContext* sim) {
     for (int i = 0; i < sim->subscribers_count; i++) {
         sim->subscribers[i].handler(sim->subscribers[i].self, sim);
@@ -82,6 +86,7 @@ void sim_tick(SimContext* sim) {
     sim->now++;
 }
 
+// done when period is over or no car is still waiting or charging
 int sim_is_finished(const SimContext* sim) {
     if (sim->mode == MODE_LIMITED && sim->now >= sim->period_time) {
         return 1;

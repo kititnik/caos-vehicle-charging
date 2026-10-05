@@ -45,12 +45,14 @@ void station_destroy(Station* station) {
     station->cars_queue_capacity = 0;
 }
 
+// every tick: plug in waiting cars, then split power
 void station_on_tick(void* self, SimContext* sim) {
     Station* station = (Station*)self;
     assign_chargers(station);
     distribute_power(station);
 }
 
+// put car in queue, or reject if no charger here fits at all
 ErrorCode station_request_charger(Station* station, Vehicle* vehicle) {
     if (!is_compatible(station, vehicle)) {
         vehicle->car_state = CAR_INCOMPATIBLE;
@@ -75,6 +77,7 @@ ErrorCode station_leave_queue(Station* station, Vehicle* vehicle) {
     return ERR_NOT_IN_QUEUE;
 }
 
+// 1 if any charger here fits the car
 static int is_compatible(const Station* station, const Vehicle* vehicle) {
     for (int i = 0; i < station->chargers_count; i++) {
         if (charger_is_compatible(&station->chargers[i], vehicle)) {
@@ -84,6 +87,7 @@ static int is_compatible(const Station* station, const Vehicle* vehicle) {
     return 0;
 }
 
+// pick a free fitting charger using selection strategy
 static Charger* find_free_charger(Station* station, const Vehicle* vehicle) {
     Charger* best = NULL;
     for (int i = 0; i < station->chargers_count; i++) {
@@ -116,6 +120,7 @@ static void remove_from_queue(Station* station, int index) {
     station->cars_queue_count--;
 }
 
+// walk the queue in order, plug in whoever fits
 static void assign_chargers(Station* station) {
     int i = 0;
     while (i < station->cars_queue_count) {
@@ -130,6 +135,7 @@ static void assign_chargers(Station* station) {
     }
 }
 
+// reset all power, run the strategy, log the result
 static void distribute_power(Station* station) {
     for (int i = 0; i < station->chargers_count; i++) {
         charger_accept_power(&station->chargers[i], 0);
@@ -147,6 +153,7 @@ static void distribute_power(Station* station) {
     }
 }
 
+// split by weight, leftovers from capped chargers go round again
 static void distribute_weighted(Station* station) {
     double remaining = station->power_limit;
     int has_leftover = 1;
@@ -173,6 +180,7 @@ static void distribute_weighted(Station* station) {
             double wanted = before + remaining * charger_weight(station, charger) / total_weight;
             double after = charger_accept_power(charger, wanted);
             given += after - before;
+            // hit the cap, so some power is left to hand out
             if (after < wanted - EPS) {
                 has_leftover = 1;
             }
@@ -181,6 +189,7 @@ static void distribute_weighted(Station* station) {
     }
 }
 
+// earliest arrival takes all it can, then the next one
 static void distribute_priority(Station* station) {
     double remaining = station->power_limit;
     while (remaining > EPS) {
@@ -201,6 +210,7 @@ static void distribute_priority(Station* station) {
     }
 }
 
+// uniform: 1 for each, adaptive: more for cars that need more energy
 static double charger_weight(const Station* station, const Charger* charger) {
     if (station->distribution_strategy == DIST_ADAPTIVE) {
         return charger->vehicle->target_charge - charger->vehicle->current_charge;

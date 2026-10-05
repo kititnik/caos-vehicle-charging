@@ -34,6 +34,7 @@ void logger_close(Logger* logger) {
     logger->file_fd = -1;
 }
 
+// like printf, adds [t=N] and newline, writes to both outputs
 void logger_write(const Logger* logger, const char* format, ...) {
     if (logger == NULL || format == NULL) {
         return;
@@ -50,6 +51,7 @@ void logger_write(const Logger* logger, const char* format, ...) {
     length += vsnprintf(message + length, sizeof(message) - (size_t)length, format, args);
     va_end(args);
 
+    // snprintf returns full length even when it cuts, so clamp
     if (length > MESSAGE_SIZE-1) {
         length = MESSAGE_SIZE-1;
     }

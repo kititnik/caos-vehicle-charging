@@ -12,8 +12,10 @@ static ErrorCode subscribe_all(SimContext* sim, Config* config, Station* station
 static void on_interrupt(int signum);
 static const char* end_reason(const SimContext* sim);
 
+// set by ctrl+c handler, checked in main loop
 static volatile sig_atomic_t interrupted = 0;
 
+// load config, run sim until done or ctrl+c, print stats
 int main(int argc, char** argv) {
     if (argc != 3 || strcmp(argv[1], "--config") != 0) {
         fprintf(stderr, "Usage: %s --config <file>\n", argv[0]);
@@ -86,6 +88,7 @@ int main(int argc, char** argv) {
     station_destroy(&station);
     logger_close(&logger);
     config_destroy(&config);
+    // 130 on ctrl+c
     return interrupted ? 128 + SIGINT : 0;
 }
 
@@ -113,6 +116,7 @@ static const char* end_reason(const SimContext* sim) {
     return "все машины обслужены";
 }
 
+// just set a flag, nothing else is safe in a signal handler
 static void on_interrupt(int signum) {
     interrupted = 1;
 }

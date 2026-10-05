@@ -1,6 +1,7 @@
 #ifndef TICK_ORDER_H
 #define TICK_ORDER_H
 
+// handlers run in this order every tick
 typedef enum {
     ORDER_VEHICLE,
     ORDER_STATION,
