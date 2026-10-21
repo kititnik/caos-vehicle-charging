@@ -15,7 +15,9 @@ typedef enum {
     ERR_QUEUE_FULL,
     ERR_NOT_IN_QUEUE,
     ERR_CHARGER_BUSY,
-    ERR_INCOMPATIBLE
+    ERR_INCOMPATIBLE,
+    ERR_SEMAPHORE,
+    ERR_THREAD
 } ErrorCode;
 
 #endif //ERROR_CODE_H

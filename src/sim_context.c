@@ -1,9 +1,15 @@
 #include "sim_context.h"
 
+#include <errno.h>
 #include <limits.h>
 #include <stdlib.h>
 
 #define INITIAL_SUBSCRIBERS_CAPACITY 16
+
+static void* subscriber_thread(void* arg);
+static void wait_sem(sem_t* sem);
+static void post_n(sem_t* sem, int count);
+static void destroy_semaphores(SimContext* sim, int phases);
 
 // copy settings from config and compute queue deadlines
 ErrorCode sim_init(SimContext* sim, const Config* config, Station* station, Logger* logger) {
@@ -21,6 +27,7 @@ ErrorCode sim_init(SimContext* sim, const Config* config, Station* station, Logg
     sim->subscribers = NULL;
     sim->subscribers_count = 0;
     sim->subscribers_capacity = 0;
+    sim->stopped = 0;
     sim->station = station;
     sim->logger = logger;
 
@@ -32,24 +39,48 @@ ErrorCode sim_init(SimContext* sim, const Config* config, Station* station, Logg
             vehicle->deadline_time = vehicle->arrival_time + config->max_wait_time;
         }
     }
+
+    // all phase semaphores start at 0, nobody runs until sim_tick says so
+    for (int phase = 0; phase < ORDER_COUNT; phase++) {
+        sim->phase_threads[phase] = 0;
+        if (sem_init(&sim->phase_start[phase], 0, 0) != 0) {
+            destroy_semaphores(sim, phase);
+            return ERR_SEMAPHORE;
+        }
+        if (sem_init(&sim->phase_done[phase], 0, 0) != 0) {
+            sem_destroy(&sim->phase_start[phase]);
+            destroy_semaphores(sim, phase);
+            return ERR_SEMAPHORE;
+        }
+    }
     return ERR_OK;
 }
 
+// stops threads if still running, then frees everything
 void sim_destroy(SimContext* sim) {
     if (sim == NULL) {
         return;
     }
 
+    sim_stop(sim);
+    for (int i = 0; i < sim->subscribers_count; i++) {
+        free(sim->subscribers[i]);
+    }
     free(sim->subscribers);
     sim->subscribers = NULL;
     sim->subscribers_count = 0;
     sim->subscribers_capacity = 0;
+
+    destroy_semaphores(sim, ORDER_COUNT);
 }
 
-// add a tick handler, list is sorted by order
+// start a thread for the participant, it sleeps until its phase begins
 ErrorCode sim_subscribe(SimContext* sim, void* self, TickHandler handler, TickOrder order) {
     if (sim == NULL || self == NULL || handler == NULL) {
         return ERR_NULL_ARGUMENT;
+    }
+    if (order < 0 || order >= ORDER_COUNT) {
+        return ERR_INVALID_ARGUMENT;
     }
 
     if (sim->subscribers_count == sim->subscribers_capacity) {
@@ -57,7 +88,7 @@ ErrorCode sim_subscribe(SimContext* sim, void* self, TickHandler handler, TickOr
             return ERR_SUBSCRIBERS_FULL;
         }
         int capacity = sim->subscribers_capacity == 0 ? INITIAL_SUBSCRIBERS_CAPACITY : sim->subscribers_capacity * 2;
-        TickSubscriber* subscribers = realloc(sim->subscribers, (size_t) capacity * sizeof(TickSubscriber));
+        TickSubscriber** subscribers = realloc(sim->subscribers, (size_t) capacity * sizeof(TickSubscriber*));
         if (subscribers == NULL) {
             return ERR_OUT_OF_MEMORY;
         }
@@ -65,25 +96,48 @@ ErrorCode sim_subscribe(SimContext* sim, void* self, TickHandler handler, TickOr
         sim->subscribers_capacity = capacity;
     }
 
-    // insertion sort step, shift bigger orders right
-    int i = sim->subscribers_count;
-    while (i > 0 && sim->subscribers[i - 1].order > order) {
-        sim->subscribers[i] = sim->subscribers[i - 1];
-        i--;
+    TickSubscriber* subscriber = malloc(sizeof(TickSubscriber));
+    if (subscriber == NULL) {
+        return ERR_OUT_OF_MEMORY;
     }
-    sim->subscribers[i].self = self;
-    sim->subscribers[i].handler = handler;
-    sim->subscribers[i].order = order;
+    subscriber->self = self;
+    subscriber->handler = handler;
+    subscriber->order = order;
+    subscriber->sim = sim;
+    if (pthread_create(&subscriber->thread, NULL, subscriber_thread, subscriber) != 0) {
+        free(subscriber);
+        return ERR_THREAD;
+    }
+    sim->subscribers[sim->subscribers_count] = subscriber;
     sim->subscribers_count++;
+    sim->phase_threads[order]++;
     return ERR_OK;
 }
 
-// call every handler once, then move time forward
+// run the phases one by one, in each: release its threads, wait until all finish
 void sim_tick(SimContext* sim) {
-    for (int i = 0; i < sim->subscribers_count; i++) {
-        sim->subscribers[i].handler(sim->subscribers[i].self, sim);
+    for (int phase = 0; phase < ORDER_COUNT; phase++) {
+        int threads = sim->phase_threads[phase];
+        post_n(&sim->phase_start[phase], threads);
+        for (int i = 0; i < threads; i++) {
+            wait_sem(&sim->phase_done[phase]);
+        }
     }
     sim->now++;
+}
+
+// wake every thread with the stop flag set and join them
+void sim_stop(SimContext* sim) {
+    if (sim->stopped) {
+        return;
+    }
+    sim->stopped = 1;
+    for (int phase = 0; phase < ORDER_COUNT; phase++) {
+        post_n(&sim->phase_start[phase], sim->phase_threads[phase]);
+    }
+    for (int i = 0; i < sim->subscribers_count; i++) {
+        pthread_join(sim->subscribers[i]->thread, NULL);
+    }
 }
 
 // done when period is over or no car is still waiting or charging
@@ -98,4 +152,38 @@ int sim_is_finished(const SimContext* sim) {
         }
     }
     return 1;
+}
+
+// thread body: wait for the phase signal, do one tick of work, report back
+static void* subscriber_thread(void* arg) {
+    TickSubscriber* subscriber = (TickSubscriber*)arg;
+    SimContext* sim = subscriber->sim;
+    while (1) {
+        wait_sem(&sim->phase_start[subscriber->order]);
+        if (sim->stopped) {
+            break;
+        }
+        subscriber->handler(subscriber->self, sim);
+        sem_post(&sim->phase_done[subscriber->order]);
+    }
+    return NULL;
+}
+
+static void wait_sem(sem_t* sem) {
+    while (sem_wait(sem) != 0 && errno == EINTR) {
+    }
+}
+
+static void post_n(sem_t* sem, int count) {
+    for (int i = 0; i < count; i++) {
+        sem_post(sem);
+    }
+}
+
+// destroy semaphores of the first `phases` phases (the rest were never initialized)
+static void destroy_semaphores(SimContext* sim, int phases) {
+    for (int phase = 0; phase < phases; phase++) {
+        sem_destroy(&sim->phase_start[phase]);
+        sem_destroy(&sim->phase_done[phase]);
+    }
 }

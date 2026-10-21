@@ -16,6 +16,9 @@ add_executable(caos_vehicle_charging
         src/stats.c
 )
 
+find_package(Threads REQUIRED)
+target_link_libraries(caos_vehicle_charging PRIVATE Threads::Threads)
+
 target_include_directories(caos_vehicle_charging
         PUBLIC include
 )
