@@ -1,6 +1,8 @@
 #ifndef STATION_H
 #define STATION_H
 
+#include <pthread.h>
+
 #include "charger.h"
 #include "vehicle.h"
 #include "distribution_strategy.h"
@@ -18,6 +20,8 @@ typedef struct Station {
     Vehicle** cars_queue;
     int cars_queue_count;
     int cars_queue_capacity;
+    // vehicle threads join and leave the queue at the same time
+    pthread_mutex_t queue_lock;
 
     double power_limit;
     DistributionStrategy distribution_strategy;

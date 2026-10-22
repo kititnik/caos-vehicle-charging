@@ -7,6 +7,8 @@
 
 #define MESSAGE_SIZE 256
 
+static void close_file(Logger* logger);
+
 ErrorCode logger_init(Logger* logger, const int* now, const char* file_path) {
     if (logger == NULL) {
         return ERR_NULL_ARGUMENT;
@@ -22,7 +24,7 @@ ErrorCode logger_init(Logger* logger, const int* now, const char* file_path) {
         }
     }
     if (pthread_mutex_init(&logger->lock, NULL) != 0) {
-        logger_close(logger);
+        close_file(logger);
         return ERR_MUTEX;
     }
     return ERR_OK;
@@ -32,6 +34,11 @@ void logger_close(Logger* logger) {
     if (logger == NULL) {
         return;
     }
+    close_file(logger);
+    pthread_mutex_destroy(&logger->lock);
+}
+
+static void close_file(Logger* logger) {
     if (logger->file_fd >= 0) {
         close(logger->file_fd);
     }
