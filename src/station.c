@@ -16,7 +16,7 @@ static void distribute_weighted(Station* station);
 static void distribute_priority(Station* station);
 static double charger_weight(const Station* station, const Charger* charger);
 
-ErrorCode station_init(Station* station, const Config* config, const Logger* logger) {
+ErrorCode station_init(Station* station, const Config* config, Logger* logger) {
     if (station == NULL || config == NULL) {
         return ERR_NULL_ARGUMENT;
     }

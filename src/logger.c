@@ -21,6 +21,10 @@ ErrorCode logger_init(Logger* logger, const int* now, const char* file_path) {
             return ERR_FILE_OPEN;
         }
     }
+    if (pthread_mutex_init(&logger->lock, NULL) != 0) {
+        logger_close(logger);
+        return ERR_MUTEX;
+    }
     return ERR_OK;
 }
 
@@ -35,7 +39,7 @@ void logger_close(Logger* logger) {
 }
 
 // like printf, adds [t=N] and newline, writes to both outputs
-void logger_write(const Logger* logger, const char* format, ...) {
+void logger_write(Logger* logger, const char* format, ...) {
     if (logger == NULL || format == NULL) {
         return;
     }
@@ -57,8 +61,10 @@ void logger_write(const Logger* logger, const char* format, ...) {
     }
     message[length] = '\n';
 
+    pthread_mutex_lock(&logger->lock);
     write(logger->console_fd, message, (size_t)length + 1);
     if (logger->file_fd >= 0) {
         write(logger->file_fd, message, (size_t)length + 1);
     }
+    pthread_mutex_unlock(&logger->lock);
 }
