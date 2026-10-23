@@ -8,7 +8,6 @@
 
 static void* subscriber_thread(void* arg);
 static void wait_sem(sem_t* sem);
-static void post_n(sem_t* sem, int count);
 static void destroy_semaphores(SimContext* sim, int phases);
 
 // copy settings from config and compute queue deadlines
@@ -40,15 +39,9 @@ ErrorCode sim_init(SimContext* sim, const Config* config, Station* station, Logg
         }
     }
 
-    // all phase semaphores start at 0, nobody runs until sim_tick says so
     for (int phase = 0; phase < ORDER_COUNT; phase++) {
         sim->phase_threads[phase] = 0;
-        if (sem_init(&sim->phase_start[phase], 0, 0) != 0) {
-            destroy_semaphores(sim, phase);
-            return ERR_SEMAPHORE;
-        }
         if (sem_init(&sim->phase_done[phase], 0, 0) != 0) {
-            sem_destroy(&sim->phase_start[phase]);
             destroy_semaphores(sim, phase);
             return ERR_SEMAPHORE;
         }
@@ -64,6 +57,7 @@ void sim_destroy(SimContext* sim) {
 
     sim_stop(sim);
     for (int i = 0; i < sim->subscribers_count; i++) {
+        sem_destroy(&sim->subscribers[i]->start);
         free(sim->subscribers[i]);
     }
     free(sim->subscribers);
@@ -104,7 +98,12 @@ ErrorCode sim_subscribe(SimContext* sim, void* self, TickHandler handler, TickOr
     subscriber->handler = handler;
     subscriber->order = order;
     subscriber->sim = sim;
+    if (sem_init(&subscriber->start, 0, 0) != 0) {
+        free(subscriber);
+        return ERR_SEMAPHORE;
+    }
     if (pthread_create(&subscriber->thread, NULL, subscriber_thread, subscriber) != 0) {
+        sem_destroy(&subscriber->start);
         free(subscriber);
         return ERR_THREAD;
     }
@@ -117,9 +116,12 @@ ErrorCode sim_subscribe(SimContext* sim, void* self, TickHandler handler, TickOr
 // run the phases one by one, in each: release its threads, wait until all finish
 void sim_tick(SimContext* sim) {
     for (int phase = 0; phase < ORDER_COUNT; phase++) {
-        int threads = sim->phase_threads[phase];
-        post_n(&sim->phase_start[phase], threads);
-        for (int i = 0; i < threads; i++) {
+        for (int i = 0; i < sim->subscribers_count; i++) {
+            if ((int)sim->subscribers[i]->order == phase) {
+                sem_post(&sim->subscribers[i]->start);
+            }
+        }
+        for (int i = 0; i < sim->phase_threads[phase]; i++) {
             wait_sem(&sim->phase_done[phase]);
         }
     }
@@ -132,8 +134,8 @@ void sim_stop(SimContext* sim) {
         return;
     }
     sim->stopped = 1;
-    for (int phase = 0; phase < ORDER_COUNT; phase++) {
-        post_n(&sim->phase_start[phase], sim->phase_threads[phase]);
+    for (int i = 0; i < sim->subscribers_count; i++) {
+        sem_post(&sim->subscribers[i]->start);
     }
     for (int i = 0; i < sim->subscribers_count; i++) {
         pthread_join(sim->subscribers[i]->thread, NULL);
@@ -159,7 +161,7 @@ static void* subscriber_thread(void* arg) {
     TickSubscriber* subscriber = (TickSubscriber*)arg;
     SimContext* sim = subscriber->sim;
     while (1) {
-        wait_sem(&sim->phase_start[subscriber->order]);
+        wait_sem(&subscriber->start);
         if (sim->stopped) {
             break;
         }
@@ -174,16 +176,9 @@ static void wait_sem(sem_t* sem) {
     }
 }
 
-static void post_n(sem_t* sem, int count) {
-    for (int i = 0; i < count; i++) {
-        sem_post(sem);
-    }
-}
-
 // destroy semaphores of the first `phases` phases (the rest were never initialized)
 static void destroy_semaphores(SimContext* sim, int phases) {
     for (int phase = 0; phase < phases; phase++) {
-        sem_destroy(&sim->phase_start[phase]);
         sem_destroy(&sim->phase_done[phase]);
     }
 }

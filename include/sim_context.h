@@ -24,6 +24,7 @@ typedef struct TickSubscriber {
     TickOrder order;
     SimContext* sim;
     pthread_t thread;
+    sem_t start;
 } TickSubscriber;
 
 typedef struct SimContext {
@@ -42,7 +43,6 @@ typedef struct SimContext {
     int subscribers_capacity;
 
     int phase_threads[ORDER_COUNT];
-    sem_t phase_start[ORDER_COUNT];
     sem_t phase_done[ORDER_COUNT];
     int stopped;
 
