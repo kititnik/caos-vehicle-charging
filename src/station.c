@@ -16,13 +16,18 @@ static void distribute_weighted(Station* station);
 static void distribute_priority(Station* station);
 static double charger_weight(const Station* station, const Charger* charger);
 
-ErrorCode station_init(Station* station, const Config* config, const Logger* logger) {
+ErrorCode station_init(Station* station, const Config* config, Logger* logger) {
     if (station == NULL || config == NULL) {
         return ERR_NULL_ARGUMENT;
     }
     station->cars_queue = malloc((size_t) config->cars_count * sizeof(Vehicle*));
     if (station->cars_queue == NULL) {
         return ERR_OUT_OF_MEMORY;
+    }
+    if (pthread_mutex_init(&station->queue_lock, NULL) != 0) {
+        free(station->cars_queue);
+        station->cars_queue = NULL;
+        return ERR_MUTEX;
     }
     station->cars_queue_count = 0;
     station->cars_queue_capacity = config->cars_count;
@@ -43,6 +48,7 @@ void station_destroy(Station* station) {
     station->cars_queue = NULL;
     station->cars_queue_count = 0;
     station->cars_queue_capacity = 0;
+    pthread_mutex_destroy(&station->queue_lock);
 }
 
 // every tick: plug in waiting cars, then split power
@@ -53,28 +59,37 @@ void station_on_tick(void* self, SimContext* sim) {
 }
 
 // put car in queue, or reject if no charger here fits at all
+// called from vehicle threads, the queue is guarded by the lock
 ErrorCode station_request_charger(Station* station, Vehicle* vehicle) {
     if (!is_compatible(station, vehicle)) {
         vehicle->car_state = CAR_INCOMPATIBLE;
         return ERR_INCOMPATIBLE;
     }
+    pthread_mutex_lock(&station->queue_lock);
     if (station->cars_queue_count == station->cars_queue_capacity) {
+        pthread_mutex_unlock(&station->queue_lock);
         return ERR_QUEUE_FULL;
     }
     station->cars_queue[station->cars_queue_count] = vehicle;
     station->cars_queue_count++;
     vehicle->car_state = CAR_QUEUED;
+    pthread_mutex_unlock(&station->queue_lock);
     return ERR_OK;
 }
 
+// called from vehicle threads, the queue is guarded by the lock
 ErrorCode station_leave_queue(Station* station, Vehicle* vehicle) {
+    ErrorCode result = ERR_NOT_IN_QUEUE;
+    pthread_mutex_lock(&station->queue_lock);
     for (int i = 0; i < station->cars_queue_count; i++) {
         if (station->cars_queue[i] == vehicle) {
             remove_from_queue(station, i);
-            return ERR_OK;
+            result = ERR_OK;
+            break;
         }
     }
-    return ERR_NOT_IN_QUEUE;
+    pthread_mutex_unlock(&station->queue_lock);
+    return result;
 }
 
 // 1 if any charger here fits the car
