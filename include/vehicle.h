@@ -8,6 +8,8 @@ struct SimContext;
 
 typedef struct Vehicle {
     int id;
+    // position in cars array
+    int index;
     CarState car_state;
 
     double current_charge;
@@ -18,8 +20,6 @@ typedef struct Vehicle {
 
     int arrival_time;
     int deadline_time;
-
-    struct Charger* charger;
 } Vehicle;
 
 void vehicle_on_tick(void* self, struct SimContext* sim);

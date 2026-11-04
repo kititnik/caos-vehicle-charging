@@ -15,12 +15,13 @@ static void distribute_power(Station* station);
 static void distribute_weighted(Station* station);
 static void distribute_priority(Station* station);
 static double charger_weight(const Station* station, const Charger* charger);
+static const Vehicle* attached_vehicle(const Station* station, const Charger* charger);
 
 ErrorCode station_init(Station* station, const Config* config, Logger* logger) {
     if (station == NULL || config == NULL) {
         return ERR_NULL_ARGUMENT;
     }
-    station->cars_queue = malloc((size_t) config->cars_count * sizeof(Vehicle*));
+    station->cars_queue = malloc((size_t) config->cars_count * sizeof(int));
     if (station->cars_queue == NULL) {
         return ERR_OUT_OF_MEMORY;
     }
@@ -31,6 +32,7 @@ ErrorCode station_init(Station* station, const Config* config, Logger* logger) {
     }
     station->cars_queue_count = 0;
     station->cars_queue_capacity = config->cars_count;
+    station->cars = config->cars;
     station->chargers = config->chargers;
     station->chargers_count = config->chargers_count;
     station->power_limit = config->power_limit;
@@ -60,7 +62,8 @@ void station_on_tick(void* self, SimContext* sim) {
 
 // put car in queue, or reject if no charger here fits at all
 // called from vehicle threads, the queue is guarded by the lock
-ErrorCode station_request_charger(Station* station, Vehicle* vehicle) {
+ErrorCode station_request_charger(Station* station, int index) {
+    Vehicle* vehicle = &station->cars[index];
     if (!is_compatible(station, vehicle)) {
         vehicle->car_state = CAR_INCOMPATIBLE;
         return ERR_INCOMPATIBLE;
@@ -70,7 +73,7 @@ ErrorCode station_request_charger(Station* station, Vehicle* vehicle) {
         pthread_mutex_unlock(&station->queue_lock);
         return ERR_QUEUE_FULL;
     }
-    station->cars_queue[station->cars_queue_count] = vehicle;
+    station->cars_queue[station->cars_queue_count] = index;
     station->cars_queue_count++;
     vehicle->car_state = CAR_QUEUED;
     pthread_mutex_unlock(&station->queue_lock);
@@ -78,11 +81,11 @@ ErrorCode station_request_charger(Station* station, Vehicle* vehicle) {
 }
 
 // called from vehicle threads, the queue is guarded by the lock
-ErrorCode station_leave_queue(Station* station, Vehicle* vehicle) {
+ErrorCode station_leave_queue(Station* station, int index) {
     ErrorCode result = ERR_NOT_IN_QUEUE;
     pthread_mutex_lock(&station->queue_lock);
     for (int i = 0; i < station->cars_queue_count; i++) {
-        if (station->cars_queue[i] == vehicle) {
+        if (station->cars_queue[i] == index) {
             remove_from_queue(station, i);
             result = ERR_OK;
             break;
@@ -139,7 +142,8 @@ static void remove_from_queue(Station* station, int index) {
 static void assign_chargers(Station* station) {
     int i = 0;
     while (i < station->cars_queue_count) {
-        Vehicle* vehicle = station->cars_queue[i];
+        int index = station->cars_queue[i];
+        Vehicle* vehicle = &station->cars[index];
         Charger* charger = find_free_charger(station, vehicle);
         if (charger != NULL && charger_attach(charger, vehicle) == ERR_OK) {
             logger_write(station->logger, "машине %d назначено устройство %d", vehicle->id, charger->id);
@@ -153,7 +157,7 @@ static void assign_chargers(Station* station) {
 // reset all power, run the strategy, log the result
 static void distribute_power(Station* station) {
     for (int i = 0; i < station->chargers_count; i++) {
-        charger_accept_power(&station->chargers[i], 0);
+        charger_accept_power(&station->chargers[i], NULL, 0);
     }
     if (station->distribution_strategy == DIST_PRIORITY) {
         distribute_priority(station);
@@ -177,7 +181,8 @@ static void distribute_weighted(Station* station) {
         double total_weight = 0;
         for (int i = 0; i < station->chargers_count; i++) {
             Charger* charger = &station->chargers[i];
-            if (!charger_is_free(charger) && charger->allocated_power < charger_get_max_accepted_power(charger) - EPS) {
+            if (!charger_is_free(charger) &&
+                charger->allocated_power < charger_get_max_accepted_power(charger, attached_vehicle(station, charger)) - EPS) {
                 total_weight += charger_weight(station, charger);
             }
         }
@@ -188,12 +193,13 @@ static void distribute_weighted(Station* station) {
         double given = 0;
         for (int i = 0; i < station->chargers_count; i++) {
             Charger* charger = &station->chargers[i];
-            if (charger_is_free(charger) || charger->allocated_power >= charger_get_max_accepted_power(charger) - EPS) {
+            const Vehicle* vehicle = attached_vehicle(station, charger);
+            if (vehicle == NULL || charger->allocated_power >= charger_get_max_accepted_power(charger, vehicle) - EPS) {
                 continue;
             }
             double before = charger->allocated_power;
             double wanted = before + remaining * charger_weight(station, charger) / total_weight;
-            double after = charger_accept_power(charger, wanted);
+            double after = charger_accept_power(charger, vehicle, wanted);
             given += after - before;
             // hit the cap, so some power is left to hand out
             if (after < wanted - EPS) {
@@ -214,21 +220,31 @@ static void distribute_priority(Station* station) {
             if (charger_is_free(charger) || charger->allocated_power > 0) {
                 continue;
             }
-            if (first == NULL || charger->vehicle->arrival_time < first->vehicle->arrival_time) {
+            if (first == NULL ||
+                attached_vehicle(station, charger)->arrival_time < attached_vehicle(station, first)->arrival_time) {
                 first = charger;
             }
         }
         if (first == NULL) {
             return;
         }
-        remaining -= charger_accept_power(first, remaining);
+        remaining -= charger_accept_power(first, attached_vehicle(station, first), remaining);
     }
 }
 
 // uniform: 1 for each, adaptive: more for cars that need more energy
 static double charger_weight(const Station* station, const Charger* charger) {
     if (station->distribution_strategy == DIST_ADAPTIVE) {
-        return charger->vehicle->target_charge - charger->vehicle->current_charge;
+        const Vehicle* vehicle = attached_vehicle(station, charger);
+        return vehicle->target_charge - vehicle->current_charge;
     }
     return 1;
+}
+
+// car plugged into the charger, NULL if free
+static const Vehicle* attached_vehicle(const Station* station, const Charger* charger) {
+    if (charger_is_free(charger)) {
+        return NULL;
+    }
+    return &station->cars[charger->vehicle_index];
 }

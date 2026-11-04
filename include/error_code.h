@@ -17,6 +17,8 @@ typedef enum {
     ERR_CHARGER_BUSY,
     ERR_INCOMPATIBLE,
     ERR_SEMAPHORE,
+    ERR_INTERRUPTED,
+    ERR_SHARED_MEMORY,
     ERR_MUTEX,
     ERR_THREAD
 } ErrorCode;

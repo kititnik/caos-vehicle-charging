@@ -9,7 +9,7 @@ void vehicle_on_tick(void* self, SimContext* sim) {
     Vehicle* vehicle = (Vehicle*)self;
     if (vehicle->car_state == CAR_PENDING && vehicle->arrival_time == sim->now) {
         logger_write(sim->logger, "машина %d прибыла", vehicle->id);
-        ErrorCode error = station_request_charger(sim->station, vehicle);
+        ErrorCode error = station_request_charger(sim->station, vehicle->index);
         if (error == ERR_OK) {
             logger_write(sim->logger, "машина %d: разъём совместим, встала в очередь", vehicle->id);
         } else if (error == ERR_INCOMPATIBLE) {
@@ -17,7 +17,7 @@ void vehicle_on_tick(void* self, SimContext* sim) {
         }
     }
     else if (vehicle->car_state == CAR_QUEUED && sim->now >= vehicle->deadline_time) {
-        station_leave_queue(sim->station, vehicle);
+        station_leave_queue(sim->station, vehicle->index);
         vehicle->car_state = CAR_TIMED_OUT;
         logger_write(sim->logger, "машина %d ушла из очереди по тайм-ауту", vehicle->id);
     }
