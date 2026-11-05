@@ -16,6 +16,7 @@ add_executable(caos_vehicle_charging
         src/stats.c
         src/sync_named.c
         src/shared_memory.c
+        src/shared_state.c
 )
 
 find_package(Threads REQUIRED)

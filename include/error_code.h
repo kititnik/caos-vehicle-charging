@@ -19,8 +19,7 @@ typedef enum {
     ERR_SEMAPHORE,
     ERR_INTERRUPTED,
     ERR_SHARED_MEMORY,
-    ERR_MUTEX,
-    ERR_THREAD
+    ERR_PROCESS
 } ErrorCode;
 
 #endif //ERROR_CODE_H

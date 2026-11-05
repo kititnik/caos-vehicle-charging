@@ -7,7 +7,7 @@
 // arrive on arrival tick, leave the queue after deadline
 void vehicle_on_tick(void* self, SimContext* sim) {
     Vehicle* vehicle = (Vehicle*)self;
-    if (vehicle->car_state == CAR_PENDING && vehicle->arrival_time == sim->now) {
+    if (vehicle->car_state == CAR_PENDING && vehicle->arrival_time == sim->state->now) {
         logger_write(sim->logger, "машина %d прибыла", vehicle->id);
         ErrorCode error = station_request_charger(sim->station, vehicle->index);
         if (error == ERR_OK) {
@@ -16,7 +16,7 @@ void vehicle_on_tick(void* self, SimContext* sim) {
             logger_write(sim->logger, "машина %d: нет совместимого разъёма, уезжает", vehicle->id);
         }
     }
-    else if (vehicle->car_state == CAR_QUEUED && sim->now >= vehicle->deadline_time) {
+    else if (vehicle->car_state == CAR_QUEUED && sim->state->now >= vehicle->deadline_time) {
         station_leave_queue(sim->station, vehicle->index);
         vehicle->car_state = CAR_TIMED_OUT;
         logger_write(sim->logger, "машина %d ушла из очереди по тайм-ауту", vehicle->id);

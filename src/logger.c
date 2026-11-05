@@ -9,7 +9,7 @@
 
 static void close_file(Logger* logger);
 
-ErrorCode logger_init(Logger* logger, const int* now, const char* file_path) {
+ErrorCode logger_init(Logger* logger, const int* now, const char* file_path, const char* lock_name) {
     if (logger == NULL) {
         return ERR_NULL_ARGUMENT;
     }
@@ -23,9 +23,9 @@ ErrorCode logger_init(Logger* logger, const int* now, const char* file_path) {
             return ERR_FILE_OPEN;
         }
     }
-    if (pthread_mutex_init(&logger->lock, NULL) != 0) {
+    if (sync_create(&logger->lock, lock_name, 1) != ERR_OK) {
         close_file(logger);
-        return ERR_MUTEX;
+        return ERR_SEMAPHORE;
     }
     return ERR_OK;
 }
@@ -35,7 +35,7 @@ void logger_close(Logger* logger) {
         return;
     }
     close_file(logger);
-    pthread_mutex_destroy(&logger->lock);
+    sync_destroy(&logger->lock);
 }
 
 static void close_file(Logger* logger) {
@@ -68,10 +68,10 @@ void logger_write(Logger* logger, const char* format, ...) {
     }
     message[length] = '\n';
 
-    pthread_mutex_lock(&logger->lock);
+    sync_lock(&logger->lock);
     write(logger->console_fd, message, (size_t)length + 1);
     if (logger->file_fd >= 0) {
         write(logger->file_fd, message, (size_t)length + 1);
     }
-    pthread_mutex_unlock(&logger->lock);
+    sync_post(&logger->lock);
 }
