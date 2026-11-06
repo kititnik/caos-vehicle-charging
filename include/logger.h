@@ -10,9 +10,10 @@ typedef struct Logger {
     // points at now in shared state for timestamps
     const int* now;
     Sync lock;
+    int owner;
 } Logger;
 
-ErrorCode logger_init(Logger* logger, const int* now, const char* file_path, const char* run);
+ErrorCode logger_init(Logger* logger, const int* now, const char* file_path, const char* run, int owner);
 void logger_close(Logger* logger);
 void logger_write(Logger* logger, const char* format, ...);
 

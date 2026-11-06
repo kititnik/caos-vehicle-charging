@@ -19,6 +19,7 @@ typedef enum {
     ERR_SEMAPHORE,
     ERR_INTERRUPTED,
     ERR_SHARED_MEMORY,
+    ERR_NOT_FOUND,
     ERR_PROCESS
 } ErrorCode;
 

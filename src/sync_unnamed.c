@@ -31,6 +31,30 @@ ErrorCode sync_create(Sync* sem, const char* run, const char* base, int index, u
     return ERR_OK;
 }
 
+// map the segment of a semaphore another process already initialized
+ErrorCode sync_open(Sync* sem, const char* run, const char* base, int index) {
+    if (sem == NULL || run == NULL || base == NULL) {
+        return ERR_NULL_ARGUMENT;
+    }
+    sem->handle = NULL;
+    sem->name[0] = '\0';
+
+    char segment[SYNC_NAME_SIZE];
+    int length = snprintf(segment, sizeof(segment), "%s_%d", base, index);
+    if ((size_t)length >= sizeof(segment)) {
+        return ERR_INVALID_ARGUMENT;
+    }
+
+    SharedMemory memory;
+    ErrorCode error = shared_memory_open(&memory, run, segment);
+    if (error != ERR_OK) {
+        return error;
+    }
+    sem->handle = memory.data;
+    snprintf(sem->name, sizeof(sem->name), "%s", memory.name);
+    return ERR_OK;
+}
+
 void sync_close(Sync* sem) {
     if (sem == NULL || sem->handle == NULL) {
         return;

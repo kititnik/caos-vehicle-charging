@@ -9,23 +9,26 @@
 
 static void close_file(Logger* logger);
 
-ErrorCode logger_init(Logger* logger, const int* now, const char* file_path, const char* run) {
+ErrorCode logger_init(Logger* logger, const int* now, const char* file_path, const char* run, int owner) {
     if (logger == NULL) {
         return ERR_NULL_ARGUMENT;
     }
     logger->console_fd = STDOUT_FILENO;
     logger->file_fd = -1;
     logger->now = now;
+    logger->owner = owner;
 
     if (file_path != NULL) {
-        logger->file_fd = open(file_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+        int flags = O_WRONLY | O_CREAT | O_APPEND | (owner ? O_TRUNC : 0);
+        logger->file_fd = open(file_path, flags, 0644);
         if (logger->file_fd < 0) {
             return ERR_FILE_OPEN;
         }
     }
-    if (sync_create(&logger->lock, run, "log", 0, 1) != ERR_OK) {
+    ErrorCode error = owner ? sync_create(&logger->lock, run, "log", 0, 1) : sync_open(&logger->lock, run, "log", 0);
+    if (error != ERR_OK) {
         close_file(logger);
-        return ERR_SEMAPHORE;
+        return error;
     }
     return ERR_OK;
 }
@@ -35,7 +38,11 @@ void logger_close(Logger* logger) {
         return;
     }
     close_file(logger);
-    sync_destroy(&logger->lock);
+    if (logger->owner) {
+        sync_destroy(&logger->lock);
+    } else {
+        sync_close(&logger->lock);
+    }
 }
 
 static void close_file(Logger* logger) {

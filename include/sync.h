@@ -15,6 +15,7 @@ typedef struct Sync {
 
 // create "/cvc_<run>_<base>_<index>", another with the same name removes first
 ErrorCode sync_create(Sync* sem, const char* run, const char* base, int index, unsigned int initial);
+ErrorCode sync_open(Sync* sem, const char* run, const char* base, int index);
 
 // returns ERR_INTERRUPTED on a signal
 ErrorCode sync_wait(Sync* sem);

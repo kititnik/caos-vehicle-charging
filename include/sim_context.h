@@ -45,6 +45,7 @@ typedef struct SimContext {
     int phase_processes[ORDER_COUNT];
     Sync phase_done[ORDER_COUNT];
     int stopped;
+    int owner;
 
     // part of every semaphore name
     const char* run;
@@ -54,11 +55,12 @@ typedef struct SimContext {
 } SimContext;
 
 ErrorCode sim_init(SimContext* sim, SharedState* state, Vehicle* cars, Station* station, Logger* logger,
-                   const char* run);
+                   const char* run, int owner);
 void sim_destroy(SimContext* sim);
 
-ErrorCode sim_subscribe(SimContext* sim, void* self, TickHandler handler, TickOrder order);
+ErrorCode sim_subscribe(SimContext* sim, void* self, TickHandler handler, TickOrder order, int index);
 ErrorCode sim_start(SimContext* sim);
+void sim_run_subscriber(SimContext* sim, TickSubscriber* subscriber);
 
 void sim_tick(SimContext* sim);
 void sim_stop(SimContext* sim);

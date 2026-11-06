@@ -56,7 +56,7 @@ int main(int argc, char** argv) {
     }
 
     Logger logger;
-    error = logger_init(&logger, &shared.state->now, config.log_path, run);
+    error = logger_init(&logger, &shared.state->now, config.log_path, run, 1);
     if (error != ERR_OK) {
         if (error == ERR_FILE_OPEN) {
             fprintf(stderr, "%s: cannot open log file\n", config.log_path);
@@ -70,7 +70,7 @@ int main(int argc, char** argv) {
     config_destroy(&config);
 
     Station station;
-    if (station_init(&station, shared.state, shared.cars, shared.chargers, shared.queue, &logger, run) != ERR_OK) {
+    if (station_init(&station, shared.state, shared.cars, shared.chargers, shared.queue, &logger, run, 1) != ERR_OK) {
         fprintf(stderr, "cannot initialize station\n");
         logger_close(&logger);
         shared_state_destroy(&shared);
@@ -78,7 +78,7 @@ int main(int argc, char** argv) {
     }
 
     SimContext sim;
-    if (sim_init(&sim, shared.state, shared.cars, &station, &logger, run) != ERR_OK) {
+    if (sim_init(&sim, shared.state, shared.cars, &station, &logger, run, 1) != ERR_OK) {
         fprintf(stderr, "cannot initialize simulation\n");
         station_destroy(&station);
         logger_close(&logger);
@@ -122,13 +122,13 @@ int main(int argc, char** argv) {
 static ErrorCode subscribe_all(SimContext* sim, Shared* shared, Station* station) {
     ErrorCode error = ERR_OK;
     for (int i = 0; i < shared->state->cars_count && error == ERR_OK; i++) {
-        error = sim_subscribe(sim, &shared->cars[i], vehicle_on_tick, ORDER_VEHICLE);
+        error = sim_subscribe(sim, &shared->cars[i], vehicle_on_tick, ORDER_VEHICLE, i);
     }
     if (error == ERR_OK) {
-        error = sim_subscribe(sim, station, station_on_tick, ORDER_STATION);
+        error = sim_subscribe(sim, station, station_on_tick, ORDER_STATION, 0);
     }
     for (int i = 0; i < shared->state->chargers_count && error == ERR_OK; i++) {
-        error = sim_subscribe(sim, &shared->chargers[i], charger_on_tick, ORDER_CHARGER);
+        error = sim_subscribe(sim, &shared->chargers[i], charger_on_tick, ORDER_CHARGER, i);
     }
     return error;
 }

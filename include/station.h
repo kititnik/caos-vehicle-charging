@@ -25,6 +25,7 @@ typedef struct Station {
     int cars_queue_capacity;
     // vehicles join and leave the queue at the same time
     Sync queue_lock;
+    int owner;
 
     double power_limit;
     DistributionStrategy distribution_strategy;
@@ -34,7 +35,7 @@ typedef struct Station {
 } Station;
 
 ErrorCode station_init(Station* station, SharedState* state, Vehicle* cars, Charger* chargers, int* queue,
-                       Logger* logger, const char* run);
+                       Logger* logger, const char* run, int owner);
 void station_destroy(Station* station);
 
 void station_on_tick(void* self, struct SimContext* sim);

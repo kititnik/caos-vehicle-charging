@@ -30,3 +30,10 @@ target_link_libraries(caos_named PRIVATE caos_common)
 # program 2: unnamed semaphores in shared memory
 add_executable(caos_unnamed app/main.c src/sync_unnamed.c)
 target_link_libraries(caos_unnamed PRIVATE caos_common)
+
+# program 3: independent processes, role is chosen by --role
+add_executable(cvc_participant app/participant.c src/sync_named.c)
+target_link_libraries(cvc_participant PRIVATE caos_common)
+
+add_executable(cvc_coordinator app/coordinator.c src/sync_named.c)
+target_link_libraries(cvc_coordinator PRIVATE caos_common)

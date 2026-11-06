@@ -9,12 +9,14 @@
 
 #define INITIAL_SUBSCRIBERS_CAPACITY 16
 
-static void subscriber_loop(TickSubscriber* subscriber, SimContext* sim);
+static const char* const START_NAMES[ORDER_COUNT] = {"vehicle", "station", "charger"};
+
+static void release(SimContext* sim, Sync* sem);
 static void destroy_semaphores(SimContext* sim, int phases);
 
-// copy settings from shared state, compute queue deadlines, create phase semaphores
+// copy settings from shared state, owner computes queue deadlines and creates phase semaphores
 ErrorCode sim_init(SimContext* sim, SharedState* state, Vehicle* cars, Station* station, Logger* logger,
-                   const char* run) {
+                   const char* run, int owner) {
     if (sim == NULL || state == NULL || cars == NULL || station == NULL || run == NULL) {
         return ERR_NULL_ARGUMENT;
     }
@@ -31,10 +33,11 @@ ErrorCode sim_init(SimContext* sim, SharedState* state, Vehicle* cars, Station* 
     sim->subscribers_capacity = 0;
     sim->stopped = 0;
     sim->run = run;
+    sim->owner = owner;
     sim->station = station;
     sim->logger = logger;
 
-    for (int i = 0; i < sim->cars_count; i++) {
+    for (int i = 0; owner && i < sim->cars_count; i++) {
         Vehicle* vehicle = &sim->cars[i];
         if (vehicle->arrival_time > INT_MAX - state->max_wait_time) {
             vehicle->deadline_time = INT_MAX;
@@ -45,23 +48,27 @@ ErrorCode sim_init(SimContext* sim, SharedState* state, Vehicle* cars, Station* 
 
     for (int phase = 0; phase < ORDER_COUNT; phase++) {
         sim->phase_processes[phase] = 0;
-        if (sync_create(&sim->phase_done[phase], run, "phase", phase, 0) != ERR_OK) {
+        ErrorCode error = owner ? sync_create(&sim->phase_done[phase], run, "phase", phase, 0)
+                                : sync_open(&sim->phase_done[phase], run, "phase", phase);
+        if (error != ERR_OK) {
             destroy_semaphores(sim, phase);
-            return ERR_SEMAPHORE;
+            return error;
         }
     }
     return ERR_OK;
 }
 
-// stops processes if still running, then removes everything
+// owner stops processes if still running, then removes everything
 void sim_destroy(SimContext* sim) {
     if (sim == NULL) {
         return;
     }
 
-    sim_stop(sim);
+    if (sim->owner) {
+        sim_stop(sim);
+    }
     for (int i = 0; i < sim->subscribers_count; i++) {
-        sync_destroy(&sim->subscribers[i]->start);
+        release(sim, &sim->subscribers[i]->start);
         free(sim->subscribers[i]);
     }
     free(sim->subscribers);
@@ -72,8 +79,8 @@ void sim_destroy(SimContext* sim) {
     destroy_semaphores(sim, ORDER_COUNT);
 }
 
-// remember the participant and create its start semaphore
-ErrorCode sim_subscribe(SimContext* sim, void* self, TickHandler handler, TickOrder order) {
+// remember the participant and create or open its start semaphore
+ErrorCode sim_subscribe(SimContext* sim, void* self, TickHandler handler, TickOrder order, int index) {
     if (sim == NULL || self == NULL || handler == NULL) {
         return ERR_NULL_ARGUMENT;
     }
@@ -102,9 +109,11 @@ ErrorCode sim_subscribe(SimContext* sim, void* self, TickHandler handler, TickOr
     subscriber->handler = handler;
     subscriber->order = order;
     subscriber->pid = -1;
-    if (sync_create(&subscriber->start, sim->run, "start", sim->subscribers_count, 0) != ERR_OK) {
+    ErrorCode error = sim->owner ? sync_create(&subscriber->start, sim->run, START_NAMES[order], index, 0)
+                                 : sync_open(&subscriber->start, sim->run, START_NAMES[order], index);
+    if (error != ERR_OK) {
         free(subscriber);
-        return ERR_SEMAPHORE;
+        return error;
     }
     sim->subscribers[sim->subscribers_count] = subscriber;
     sim->subscribers_count++;
@@ -123,7 +132,7 @@ ErrorCode sim_start(SimContext* sim) {
         }
         if (pid == 0) {
             signal(SIGINT, SIG_IGN);
-            subscriber_loop(subscriber, sim);
+            sim_run_subscriber(sim, subscriber);
             _exit(0);
         }
         subscriber->pid = pid;
@@ -146,7 +155,7 @@ void sim_tick(SimContext* sim) {
     sim->state->now++;
 }
 
-// wake every process with the stop flag set and wait for them
+// wake every participant with the stop flag set, wait for the forked ones
 void sim_stop(SimContext* sim) {
     if (sim->stopped) {
         return;
@@ -154,9 +163,7 @@ void sim_stop(SimContext* sim) {
     sim->stopped = 1;
     sim->state->stop = 1;
     for (int i = 0; i < sim->subscribers_count; i++) {
-        if (sim->subscribers[i]->pid > 0) {
-            sync_post(&sim->subscribers[i]->start);
-        }
+        sync_post(&sim->subscribers[i]->start);
     }
     for (int i = 0; i < sim->subscribers_count; i++) {
         TickSubscriber* subscriber = sim->subscribers[i];
@@ -166,6 +173,14 @@ void sim_stop(SimContext* sim) {
         while (waitpid(subscriber->pid, NULL, 0) < 0 && errno == EINTR) {
         }
         subscriber->pid = -1;
+    }
+}
+
+// participant body: wait for the phase signal, do one tick of work, report back
+void sim_run_subscriber(SimContext* sim, TickSubscriber* subscriber) {
+    while (sync_lock(&subscriber->start) == ERR_OK && !sim->state->stop) {
+        subscriber->handler(subscriber->self, sim);
+        sync_post(&sim->phase_done[subscriber->order]);
     }
 }
 
@@ -183,17 +198,18 @@ int sim_is_finished(const SimContext* sim) {
     return 1;
 }
 
-// child body: wait for the phase signal, do one tick of work, report back
-static void subscriber_loop(TickSubscriber* subscriber, SimContext* sim) {
-    while (sync_lock(&subscriber->start) == ERR_OK && !sim->state->stop) {
-        subscriber->handler(subscriber->self, sim);
-        sync_post(&sim->phase_done[subscriber->order]);
+// owner removes the semaphore, participant only closes it
+static void release(SimContext* sim, Sync* sem) {
+    if (sim->owner) {
+        sync_destroy(sem);
+    } else {
+        sync_close(sem);
     }
 }
 
-// destroy semaphores of the first `phases` phases (the rest were never created)
+// release semaphores of the first `phases` phases (the rest were never opened)
 static void destroy_semaphores(SimContext* sim, int phases) {
     for (int phase = 0; phase < phases; phase++) {
-        sync_destroy(&sim->phase_done[phase]);
+        release(sim, &sim->phase_done[phase]);
     }
 }
