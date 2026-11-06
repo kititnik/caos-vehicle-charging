@@ -56,9 +56,7 @@ int main(int argc, char** argv) {
     }
 
     Logger logger;
-    char lock_name[SYNC_NAME_SIZE];
-    sync_make_name(lock_name, sizeof(lock_name), run, "log", 0);
-    error = logger_init(&logger, &shared.state->now, config.log_path, lock_name);
+    error = logger_init(&logger, &shared.state->now, config.log_path, run);
     if (error != ERR_OK) {
         if (error == ERR_FILE_OPEN) {
             fprintf(stderr, "%s: cannot open log file\n", config.log_path);
@@ -72,9 +70,7 @@ int main(int argc, char** argv) {
     config_destroy(&config);
 
     Station station;
-    sync_make_name(lock_name, sizeof(lock_name), run, "queue", 0);
-    if (station_init(&station, shared.state, shared.cars, shared.chargers, shared.queue, &logger,
-                     lock_name) != ERR_OK) {
+    if (station_init(&station, shared.state, shared.cars, shared.chargers, shared.queue, &logger, run) != ERR_OK) {
         fprintf(stderr, "cannot initialize station\n");
         logger_close(&logger);
         shared_state_destroy(&shared);

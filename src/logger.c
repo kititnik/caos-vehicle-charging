@@ -9,7 +9,7 @@
 
 static void close_file(Logger* logger);
 
-ErrorCode logger_init(Logger* logger, const int* now, const char* file_path, const char* lock_name) {
+ErrorCode logger_init(Logger* logger, const int* now, const char* file_path, const char* run) {
     if (logger == NULL) {
         return ERR_NULL_ARGUMENT;
     }
@@ -23,7 +23,7 @@ ErrorCode logger_init(Logger* logger, const int* now, const char* file_path, con
             return ERR_FILE_OPEN;
         }
     }
-    if (sync_create(&logger->lock, lock_name, 1) != ERR_OK) {
+    if (sync_create(&logger->lock, run, "log", 0, 1) != ERR_OK) {
         close_file(logger);
         return ERR_SEMAPHORE;
     }

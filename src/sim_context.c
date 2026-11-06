@@ -45,9 +45,7 @@ ErrorCode sim_init(SimContext* sim, SharedState* state, Vehicle* cars, Station* 
 
     for (int phase = 0; phase < ORDER_COUNT; phase++) {
         sim->phase_processes[phase] = 0;
-        char name[SYNC_NAME_SIZE];
-        if (sync_make_name(name, sizeof(name), run, "phase", phase) != ERR_OK ||
-            sync_create(&sim->phase_done[phase], name, 0) != ERR_OK) {
+        if (sync_create(&sim->phase_done[phase], run, "phase", phase, 0) != ERR_OK) {
             destroy_semaphores(sim, phase);
             return ERR_SEMAPHORE;
         }
@@ -104,9 +102,7 @@ ErrorCode sim_subscribe(SimContext* sim, void* self, TickHandler handler, TickOr
     subscriber->handler = handler;
     subscriber->order = order;
     subscriber->pid = -1;
-    char name[SYNC_NAME_SIZE];
-    if (sync_make_name(name, sizeof(name), sim->run, "start", sim->subscribers_count) != ERR_OK ||
-        sync_create(&subscriber->start, name, 0) != ERR_OK) {
+    if (sync_create(&subscriber->start, sim->run, "start", sim->subscribers_count, 0) != ERR_OK) {
         free(subscriber);
         return ERR_SEMAPHORE;
     }

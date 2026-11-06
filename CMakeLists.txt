@@ -4,8 +4,8 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 set(CMAKE_C_STANDARD 11)
 
-add_executable(caos_vehicle_charging
-        app/main.c
+# everything except the semaphore implementation
+add_library(caos_common STATIC
         src/vehicle.c
         src/charger.c
         src/station.c
@@ -14,14 +14,19 @@ add_executable(caos_vehicle_charging
         src/sim_context.c
         src/logger.c
         src/stats.c
-        src/sync_named.c
+        src/sync.c
         src/shared_memory.c
         src/shared_state.c
 )
+target_include_directories(caos_common PUBLIC include)
 
 find_package(Threads REQUIRED)
-target_link_libraries(caos_vehicle_charging PRIVATE Threads::Threads)
+target_link_libraries(caos_common PUBLIC Threads::Threads)
 
-target_include_directories(caos_vehicle_charging
-        PUBLIC include
-)
+# program 1: named semaphores
+add_executable(caos_named app/main.c src/sync_named.c)
+target_link_libraries(caos_named PRIVATE caos_common)
+
+# program 2: unnamed semaphores in shared memory
+add_executable(caos_unnamed app/main.c src/sync_unnamed.c)
+target_link_libraries(caos_unnamed PRIVATE caos_common)

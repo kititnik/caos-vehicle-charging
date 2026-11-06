@@ -12,7 +12,7 @@ typedef struct Logger {
     Sync lock;
 } Logger;
 
-ErrorCode logger_init(Logger* logger, const int* now, const char* file_path, const char* lock_name);
+ErrorCode logger_init(Logger* logger, const int* now, const char* file_path, const char* run);
 void logger_close(Logger* logger);
 void logger_write(Logger* logger, const char* format, ...);
 

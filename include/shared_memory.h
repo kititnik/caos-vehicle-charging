@@ -15,7 +15,8 @@ typedef struct SharedMemory {
 } SharedMemory;
 
 // create new zero filled segment
-ErrorCode shared_memory_create(SharedMemory* memory, const char* name, size_t size);
+// "/cvc_<run>_<base>"
+ErrorCode shared_memory_create(SharedMemory* memory, const char* run, const char* base, size_t size);
 
 // unmap in this process
 void shared_memory_close(SharedMemory* memory);

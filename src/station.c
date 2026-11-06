@@ -18,11 +18,11 @@ static double charger_weight(const Station* station, const Charger* charger);
 static const Vehicle* attached_vehicle(const Station* station, const Charger* charger);
 
 ErrorCode station_init(Station* station, SharedState* state, Vehicle* cars, Charger* chargers, int* queue,
-                       Logger* logger, const char* lock_name) {
+                       Logger* logger, const char* run) {
     if (station == NULL || state == NULL || cars == NULL || chargers == NULL || queue == NULL) {
         return ERR_NULL_ARGUMENT;
     }
-    if (sync_create(&station->queue_lock, lock_name, 1) != ERR_OK) {
+    if (sync_create(&station->queue_lock, run, "queue", 0, 1) != ERR_OK) {
         return ERR_SEMAPHORE;
     }
     station->state = state;

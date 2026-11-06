@@ -2,20 +2,16 @@
 
 #include <string.h>
 
-#include "sync.h"
-
-static ErrorCode create_segment(SharedMemory* memory, const char* run, const char* base, size_t size);
-
 ErrorCode shared_state_create(Shared* shared, const Config* config, const char* run) {
     size_t cars_size = (size_t)config->cars_count * sizeof(Vehicle);
     size_t chargers_size = (size_t)config->chargers_count * sizeof(Charger);
     size_t queue_size = (size_t)config->cars_count * sizeof(int);
 
     memset(shared, 0, sizeof(*shared));
-    if (create_segment(&shared->state_memory, run, "state", sizeof(SharedState)) != ERR_OK ||
-        create_segment(&shared->cars_memory, run, "cars", cars_size) != ERR_OK ||
-        create_segment(&shared->chargers_memory, run, "chargers", chargers_size) != ERR_OK ||
-        create_segment(&shared->queue_memory, run, "queue", queue_size) != ERR_OK) {
+    if (shared_memory_create(&shared->state_memory, run, "state", sizeof(SharedState)) != ERR_OK ||
+        shared_memory_create(&shared->cars_memory, run, "cars", cars_size) != ERR_OK ||
+        shared_memory_create(&shared->chargers_memory, run, "chargers", chargers_size) != ERR_OK ||
+        shared_memory_create(&shared->queue_memory, run, "queue", queue_size) != ERR_OK) {
         shared_state_destroy(shared);
         return ERR_SHARED_MEMORY;
     }
@@ -46,10 +42,4 @@ void shared_state_destroy(Shared* shared) {
     shared_memory_destroy(&shared->cars_memory);
     shared_memory_destroy(&shared->chargers_memory);
     shared_memory_destroy(&shared->queue_memory);
-}
-
-static ErrorCode create_segment(SharedMemory* memory, const char* run, const char* base, size_t size) {
-    char name[SHARED_MEMORY_NAME_SIZE];
-    sync_make_name(name, sizeof(name), run, base, 0);
-    return shared_memory_create(memory, name, size);
 }

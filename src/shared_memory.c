@@ -1,21 +1,23 @@
 #include "shared_memory.h"
 
 #include <fcntl.h>
+#include <stdio.h>
 #include <string.h>
 #include <sys/mman.h>
 #include <sys/types.h>
 #include <unistd.h>
 
-ErrorCode shared_memory_create(SharedMemory* memory, const char* name, size_t size) {
-    if (memory == NULL || name == NULL) {
+ErrorCode shared_memory_create(SharedMemory* memory, const char* run, const char* base, size_t size) {
+    if (memory == NULL || run == NULL || base == NULL) {
         return ERR_NULL_ARGUMENT;
     }
     memory->data = NULL;
     memory->size = 0;
     memory->name[0] = '\0';
 
-    size_t len = strlen(name);
-    if (len >= SHARED_MEMORY_NAME_SIZE) {
+    char name[SHARED_MEMORY_NAME_SIZE];
+    int length = snprintf(name, sizeof(name), "/cvc_%s_%s", run, base);
+    if ((size_t)length >= sizeof(name)) {
         return ERR_INVALID_ARGUMENT;
     }
 
@@ -38,7 +40,7 @@ ErrorCode shared_memory_create(SharedMemory* memory, const char* name, size_t si
 
     memory->data = data;
     memory->size = size;
-    memcpy(memory->name, name, len + 1);
+    memcpy(memory->name, name, (size_t)length + 1);
     return ERR_OK;
 }
 

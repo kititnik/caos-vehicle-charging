@@ -34,7 +34,7 @@ typedef struct Station {
 } Station;
 
 ErrorCode station_init(Station* station, SharedState* state, Vehicle* cars, Charger* chargers, int* queue,
-                       Logger* logger, const char* lock_name);
+                       Logger* logger, const char* run);
 void station_destroy(Station* station);
 
 void station_on_tick(void* self, struct SimContext* sim);
