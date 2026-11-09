@@ -24,6 +24,6 @@ done
 wait $coordinator
 code=$?
 
-kill -INT $(jobs -p) 2>/dev/null
-wait
+kill -TERM $(jobs -p) 2>/dev/null
+wait 2>/dev/null
 exit $code
