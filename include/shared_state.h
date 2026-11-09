@@ -49,6 +49,8 @@ typedef struct Shared {
     int* queue;
 } Shared;
 
+void shared_state_fill(SharedState* state, Vehicle* cars, Charger* chargers, const Config* config);
+
 // create all segments and copy config there, on failure nothing is left behind
 ErrorCode shared_state_create(Shared* shared, const Config* config, const char* run);
 void shared_state_destroy(Shared* shared);

@@ -24,7 +24,11 @@ ErrorCode shared_state_create(Shared* shared, const Config* config, const char* 
     shared->chargers = shared->chargers_memory.data;
     shared->queue = shared->queue_memory.data;
 
-    SharedState* state = shared->state;
+    shared_state_fill(shared->state, shared->cars, shared->chargers, config);
+    return ERR_OK;
+}
+
+void shared_state_fill(SharedState* state, Vehicle* cars, Charger* chargers, const Config* config) {
     state->power_limit = config->power_limit;
     state->max_wait_time = config->max_wait_time;
     state->distribution_strategy = config->distribution_strategy;
@@ -40,9 +44,8 @@ ErrorCode shared_state_create(Shared* shared, const Config* config, const char* 
     state->cars_count = config->cars_count;
     state->chargers_count = config->chargers_count;
 
-    memcpy(shared->cars, config->cars, cars_size);
-    memcpy(shared->chargers, config->chargers, chargers_size);
-    return ERR_OK;
+    memcpy(cars, config->cars, (size_t)config->cars_count * sizeof(Vehicle));
+    memcpy(chargers, config->chargers, (size_t)config->chargers_count * sizeof(Charger));
 }
 
 ErrorCode shared_state_open(Shared* shared, const char* run) {

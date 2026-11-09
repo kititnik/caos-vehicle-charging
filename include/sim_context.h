@@ -14,6 +14,9 @@
 
 typedef struct SimContext SimContext;
 
+// "vehicle", "station", "charger"
+extern const char* const ORDER_NAMES[ORDER_COUNT];
+
 // called once per tick from the subscriber's own process, self is the observer
 typedef void (*TickHandler)(void* self, SimContext* sim);
 
@@ -22,6 +25,8 @@ typedef struct TickSubscriber {
     void* self;
     TickHandler handler;
     TickOrder order;
+    // position among participants of the same order
+    int index;
     pid_t pid;
     Sync start;
 } TickSubscriber;

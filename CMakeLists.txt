@@ -17,6 +17,8 @@ add_library(caos_common STATIC
         src/sync.c
         src/shared_memory.c
         src/shared_state.c
+        src/channel.c
+        src/world.c
 )
 target_include_directories(caos_common PUBLIC include)
 
@@ -37,3 +39,10 @@ target_link_libraries(cvc_participant PRIVATE caos_common)
 
 add_executable(cvc_coordinator app/coordinator.c src/sync_named.c)
 target_link_libraries(cvc_coordinator PRIVATE caos_common)
+
+# program 4: independent processes, data goes through named pipes
+add_executable(cvc_fifo_coordinator app/fifo_coordinator.c src/sync_named.c)
+target_link_libraries(cvc_fifo_coordinator PRIVATE caos_common)
+
+add_executable(cvc_fifo_participant app/fifo_participant.c src/sync_named.c)
+target_link_libraries(cvc_fifo_participant PRIVATE caos_common)

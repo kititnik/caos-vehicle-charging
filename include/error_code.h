@@ -20,7 +20,8 @@ typedef enum {
     ERR_INTERRUPTED,
     ERR_SHARED_MEMORY,
     ERR_NOT_FOUND,
-    ERR_PROCESS
+    ERR_PROCESS,
+    ERR_CHANNEL
 } ErrorCode;
 
 #endif //ERROR_CODE_H

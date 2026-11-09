@@ -9,7 +9,7 @@
 
 #define INITIAL_SUBSCRIBERS_CAPACITY 16
 
-static const char* const START_NAMES[ORDER_COUNT] = {"vehicle", "station", "charger"};
+const char* const ORDER_NAMES[ORDER_COUNT] = {"vehicle", "station", "charger"};
 
 static void release(SimContext* sim, Sync* sem);
 static void destroy_semaphores(SimContext* sim, int phases);
@@ -108,9 +108,10 @@ ErrorCode sim_subscribe(SimContext* sim, void* self, TickHandler handler, TickOr
     subscriber->self = self;
     subscriber->handler = handler;
     subscriber->order = order;
+    subscriber->index = index;
     subscriber->pid = -1;
-    ErrorCode error = sim->owner ? sync_create(&subscriber->start, sim->run, START_NAMES[order], index, 0)
-                                 : sync_open(&subscriber->start, sim->run, START_NAMES[order], index);
+    ErrorCode error = sim->owner ? sync_create(&subscriber->start, sim->run, ORDER_NAMES[order], index, 0)
+                                 : sync_open(&subscriber->start, sim->run, ORDER_NAMES[order], index);
     if (error != ERR_OK) {
         free(subscriber);
         return error;
