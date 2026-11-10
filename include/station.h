@@ -1,27 +1,31 @@
 #ifndef STATION_H
 #define STATION_H
 
-#include <pthread.h>
-
 #include "charger.h"
 #include "vehicle.h"
 #include "distribution_strategy.h"
 #include "selection_strategy.h"
 #include "logger.h"
-#include "config.h"
+#include "shared_state.h"
+#include "sync.h"
 #include "error_code.h"
 
 struct SimContext;
 
 typedef struct Station {
+    SharedState* state;
+
     Charger* chargers;
     int chargers_count;
 
-    Vehicle** cars_queue;
-    int cars_queue_count;
+    Vehicle* cars;
+
+    // indices in cars array, in arrival order
+    int* cars_queue;
     int cars_queue_capacity;
-    // vehicle threads join and leave the queue at the same time
-    pthread_mutex_t queue_lock;
+    // vehicles join and leave the queue at the same time
+    Sync queue_lock;
+    int owner;
 
     double power_limit;
     DistributionStrategy distribution_strategy;
@@ -30,12 +34,13 @@ typedef struct Station {
     Logger* logger;
 } Station;
 
-ErrorCode station_init(Station* station, const Config* config, Logger* logger);
+ErrorCode station_init(Station* station, SharedState* state, Vehicle* cars, Charger* chargers, int* queue,
+                       Logger* logger, const char* run, int owner);
 void station_destroy(Station* station);
 
 void station_on_tick(void* self, struct SimContext* sim);
 
-ErrorCode station_request_charger(Station* station, Vehicle* vehicle);
-ErrorCode station_leave_queue(Station* station, Vehicle* vehicle);
+ErrorCode station_request_charger(Station* station, int index);
+ErrorCode station_leave_queue(Station* station, int index);
 
 #endif //STATION_H

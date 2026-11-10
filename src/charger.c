@@ -8,10 +8,10 @@
 // push energy into the car, free the charger once car is full
 void charger_on_tick(void* self, SimContext* sim) {
     Charger* charger = (Charger*)self;
-    Vehicle* vehicle = charger->vehicle;
-    if (vehicle == NULL) {
+    if (charger_is_free(charger)) {
         return;
     }
+    Vehicle* vehicle = &sim->cars[charger->vehicle_index];
     int is_charged = vehicle_charge(vehicle, charger->allocated_power * sim->tick_duration);
     logger_write(sim->logger, "машина %d: заряд %.1f / %.1f кВт·ч", vehicle->id,
                  vehicle->current_charge, vehicle->target_charge);
@@ -24,7 +24,7 @@ void charger_on_tick(void* self, SimContext* sim) {
 }
 
 int charger_is_free(const Charger* charger) {
-    return charger->vehicle == NULL;
+    return charger->vehicle_index < 0;
 }
 
 // connectors are bitmasks, any shared bit means it fits
@@ -40,35 +40,31 @@ ErrorCode charger_attach(Charger* charger, Vehicle* vehicle) {
     if (!charger_is_compatible(charger, vehicle)) {
         return ERR_INCOMPATIBLE;
     }
-    charger->vehicle = vehicle;
-    vehicle->charger = charger;
+    charger->vehicle_index = vehicle->index;
     vehicle->car_state = CAR_CHARGING;
     return ERR_OK;
 }
 
 // unplug car and drop power to zero
 void charger_detach(Charger* charger) {
-    if (charger->vehicle != NULL) {
-        charger->vehicle->charger = NULL;
-    }
-    charger->vehicle = NULL;
+    charger->vehicle_index = -1;
     charger->allocated_power = 0;
 }
 
 // min of charger and car max power
-double charger_get_max_accepted_power(const Charger* charger) {
-    if (charger->vehicle == NULL) {
+double charger_get_max_accepted_power(const Charger* charger, const Vehicle* vehicle) {
+    if (vehicle == NULL) {
         return 0;
     }
-    if (charger->vehicle->max_power < charger->max_power) {
-        return charger->vehicle->max_power;
+    if (vehicle->max_power < charger->max_power) {
+        return vehicle->max_power;
     }
     return charger->max_power;
 }
 
 // set power capped by max accepted, returns what was actually set
-double charger_accept_power(Charger* charger, double power) {
-    double max_power = charger_get_max_accepted_power(charger);
+double charger_accept_power(Charger* charger, const Vehicle* vehicle, double power) {
+    double max_power = charger_get_max_accepted_power(charger, vehicle);
     charger->allocated_power = power < max_power ? power : max_power;
     return charger->allocated_power;
 }

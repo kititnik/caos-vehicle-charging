@@ -15,7 +15,7 @@ void stats_print(const SimContext* sim, const char* reason) {
 
     logger_write(sim->logger, "===== итоги =====");
     logger_write(sim->logger, "завершение: %s", reason);
-    logger_write(sim->logger, "прошло тактов: %d (%.2f ч)", sim->now, sim->now * sim->tick_duration);
+    logger_write(sim->logger, "прошло тактов: %d (%.2f ч)", sim->state->now, sim->state->now * sim->tick_duration);
     logger_write(sim->logger, "машин всего: %d", sim->cars_count);
     logger_write(sim->logger, "  зарядились: %d", counts[CAR_DONE]);
     logger_write(sim->logger, "  ушли по тайм-ауту: %d", counts[CAR_TIMED_OUT]);

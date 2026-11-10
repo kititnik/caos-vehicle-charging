@@ -231,7 +231,7 @@ static ErrorCode parse_charger(Config* config, char** save) {
     charger->type = (ConnectorType) type;
     charger->max_power = max_power;
     charger->allocated_power = 0;
-    charger->vehicle = NULL;
+    charger->vehicle_index = -1;
     config->chargers_count++;
     return ERR_OK;
 }
@@ -263,6 +263,7 @@ static ErrorCode parse_car(Config* config, char** save) {
     config->cars = cars;
     Vehicle* car = &cars[config->cars_count];
     car->id = config->cars_count + 1;
+    car->index = config->cars_count;
     car->car_state = CAR_PENDING;
     car->current_charge = capacity * start_percent / 100.0;
     car->capacity = capacity;
@@ -271,7 +272,6 @@ static ErrorCode parse_car(Config* config, char** save) {
     car->connectors = connectors;
     car->arrival_time = arrival_time;
     car->deadline_time = 0;
-    car->charger = NULL;
     config->cars_count++;
     return ERR_OK;
 }

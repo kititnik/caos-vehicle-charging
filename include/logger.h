@@ -1,19 +1,19 @@
 #ifndef LOGGER_H
 #define LOGGER_H
 
-#include <pthread.h>
-
 #include "error_code.h"
+#include "sync.h"
 
 typedef struct Logger {
     int console_fd;
     int file_fd;
-    // points at sim.now for timestamps
+    // points at now in shared state for timestamps
     const int* now;
-    pthread_mutex_t lock;
+    Sync lock;
+    int owner;
 } Logger;
 
-ErrorCode logger_init(Logger* logger, const int* now, const char* file_path);
+ErrorCode logger_init(Logger* logger, const int* now, const char* file_path, const char* run, int owner);
 void logger_close(Logger* logger);
 void logger_write(Logger* logger, const char* format, ...);
 
