@@ -1,6 +1,6 @@
 #include "station.h"
 
-#include <stddef.h>
+#include <stdlib.h>
 
 #include "sim_context.h"
 
@@ -17,26 +17,22 @@ static void distribute_priority(Station* station);
 static double charger_weight(const Station* station, const Charger* charger);
 static const Vehicle* attached_vehicle(const Station* station, const Charger* charger);
 
-ErrorCode station_init(Station* station, SharedState* state, Vehicle* cars, Charger* chargers, int* queue,
-                       Logger* logger, const char* run, int owner) {
-    if (station == NULL || state == NULL || cars == NULL || chargers == NULL || queue == NULL) {
+ErrorCode station_init(Station* station, const Config* config, const Logger* logger) {
+    if (station == NULL || config == NULL) {
         return ERR_NULL_ARGUMENT;
     }
-    ErrorCode error = owner ? sync_create(&station->queue_lock, run, "queue", 0, 1)
-                            : sync_open(&station->queue_lock, run, "queue", 0);
-    if (error != ERR_OK) {
-        return error;
+    station->cars_queue = malloc((size_t) config->cars_count * sizeof(int));
+    if (station->cars_queue == NULL) {
+        return ERR_OUT_OF_MEMORY;
     }
-    station->owner = owner;
-    station->state = state;
-    station->cars_queue = queue;
-    station->cars_queue_capacity = state->cars_count;
-    station->cars = cars;
-    station->chargers = chargers;
-    station->chargers_count = state->chargers_count;
-    station->power_limit = state->power_limit;
-    station->distribution_strategy = state->distribution_strategy;
-    station->selection_strategy = state->selection_strategy;
+    station->cars_queue_count = 0;
+    station->cars_queue_capacity = config->cars_count;
+    station->cars = config->cars;
+    station->chargers = config->chargers;
+    station->chargers_count = config->chargers_count;
+    station->power_limit = config->power_limit;
+    station->distribution_strategy = config->distribution_strategy;
+    station->selection_strategy = config->selection_strategy;
     station->logger = logger;
     return ERR_OK;
 }
@@ -45,11 +41,10 @@ void station_destroy(Station* station) {
     if (station == NULL) {
         return;
     }
-    if (station->owner) {
-        sync_destroy(&station->queue_lock);
-    } else {
-        sync_close(&station->queue_lock);
-    }
+    free(station->cars_queue);
+    station->cars_queue = NULL;
+    station->cars_queue_count = 0;
+    station->cars_queue_capacity = 0;
 }
 
 // every tick: plug in waiting cars, then split power
@@ -60,38 +55,29 @@ void station_on_tick(void* self, SimContext* sim) {
 }
 
 // put car in queue, or reject if no charger here fits at all
-// called from vehicle processes, the queue is guarded by the lock
 ErrorCode station_request_charger(Station* station, int index) {
     Vehicle* vehicle = &station->cars[index];
     if (!is_compatible(station, vehicle)) {
         vehicle->car_state = CAR_INCOMPATIBLE;
         return ERR_INCOMPATIBLE;
     }
-    sync_lock(&station->queue_lock);
-    if (station->state->queue_count == station->cars_queue_capacity) {
-        sync_post(&station->queue_lock);
+    if (station->cars_queue_count == station->cars_queue_capacity) {
         return ERR_QUEUE_FULL;
     }
-    station->cars_queue[station->state->queue_count] = index;
-    station->state->queue_count++;
+    station->cars_queue[station->cars_queue_count] = index;
+    station->cars_queue_count++;
     vehicle->car_state = CAR_QUEUED;
-    sync_post(&station->queue_lock);
     return ERR_OK;
 }
 
-// called from vehicle processes, the queue is guarded by the lock
 ErrorCode station_leave_queue(Station* station, int index) {
-    ErrorCode result = ERR_NOT_IN_QUEUE;
-    sync_lock(&station->queue_lock);
-    for (int i = 0; i < station->state->queue_count; i++) {
+    for (int i = 0; i < station->cars_queue_count; i++) {
         if (station->cars_queue[i] == index) {
             remove_from_queue(station, i);
-            result = ERR_OK;
-            break;
+            return ERR_OK;
         }
     }
-    sync_post(&station->queue_lock);
-    return result;
+    return ERR_NOT_IN_QUEUE;
 }
 
 // 1 if any charger here fits the car
@@ -131,16 +117,16 @@ static int is_better_charger(const Station* station, const Charger* candidate, c
 }
 
 static void remove_from_queue(Station* station, int index) {
-    for (int i = index; i < station->state->queue_count - 1; i++) {
+    for (int i = index; i < station->cars_queue_count - 1; i++) {
         station->cars_queue[i] = station->cars_queue[i + 1];
     }
-    station->state->queue_count--;
+    station->cars_queue_count--;
 }
 
 // walk the queue in order, plug in whoever fits
 static void assign_chargers(Station* station) {
     int i = 0;
-    while (i < station->state->queue_count) {
+    while (i < station->cars_queue_count) {
         int index = station->cars_queue[i];
         Vehicle* vehicle = &station->cars[index];
         Charger* charger = find_free_charger(station, vehicle);
