@@ -4,10 +4,25 @@
 
 #define EPS 1e-9
 
-// arrive on arrival tick, leave the queue after deadline
 void vehicle_on_tick(void* self, SimContext* sim) {
     Vehicle* vehicle = (Vehicle*)self;
-    if (vehicle->car_state == CAR_PENDING && vehicle->arrival_time == sim->now) {
+    vehicle_act(vehicle, vehicle_decide(vehicle, sim->now), sim);
+}
+
+// arrive on arrival tick, leave the queue after deadline
+VehicleAction vehicle_decide(const Vehicle* vehicle, int now) {
+    if (vehicle->car_state == CAR_PENDING && vehicle->arrival_time == now) {
+        return ACTION_ARRIVE;
+    }
+    if (vehicle->car_state == CAR_QUEUED && now >= vehicle->deadline_time) {
+        return ACTION_LEAVE;
+    }
+    return ACTION_NONE;
+}
+
+// station side of the decision, action that does not fit the state is ignored
+void vehicle_act(Vehicle* vehicle, VehicleAction action, SimContext* sim) {
+    if (action == ACTION_ARRIVE && vehicle->car_state == CAR_PENDING) {
         logger_write(sim->logger, "машина %d прибыла", vehicle->id);
         ErrorCode error = station_request_charger(sim->station, vehicle->index);
         if (error == ERR_OK) {
@@ -16,7 +31,7 @@ void vehicle_on_tick(void* self, SimContext* sim) {
             logger_write(sim->logger, "машина %d: нет совместимого разъёма, уезжает", vehicle->id);
         }
     }
-    else if (vehicle->car_state == CAR_QUEUED && sim->now >= vehicle->deadline_time) {
+    else if (action == ACTION_LEAVE && vehicle->car_state == CAR_QUEUED) {
         station_leave_queue(sim->station, vehicle->index);
         vehicle->car_state = CAR_TIMED_OUT;
         logger_write(sim->logger, "машина %d ушла из очереди по тайм-ауту", vehicle->id);

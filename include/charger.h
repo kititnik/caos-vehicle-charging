@@ -19,6 +19,7 @@ typedef struct Charger {
 } Charger;
 
 void charger_on_tick(void* self, struct SimContext* sim);
+void charger_complete_tick(Charger* charger, struct Vehicle* vehicle, int is_charged, struct SimContext* sim);
 
 int charger_is_free(const Charger* charger);
 int charger_is_compatible(const Charger* charger, const struct Vehicle* vehicle);
