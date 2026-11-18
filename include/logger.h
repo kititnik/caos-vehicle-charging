@@ -6,6 +6,8 @@
 typedef struct Logger {
     int console_fd;
     int file_fd;
+    // observer socket or -1, not owned
+    int watcher_fd;
     // points at sim.now for timestamps
     const int* now;
 } Logger;

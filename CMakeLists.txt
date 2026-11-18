@@ -26,3 +26,6 @@ target_link_libraries(cvc_server PRIVATE caos_common)
 
 add_executable(cvc_client app/client.c)
 target_link_libraries(cvc_client PRIVATE caos_common)
+
+add_executable(cvc_observer app/observer.c)
+target_link_libraries(cvc_observer PRIVATE caos_common)

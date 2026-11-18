@@ -39,6 +39,8 @@ static void stop_server(Server* server, Opened opened);
 static ErrorCode subscribe_all(Server* server);
 static ErrorCode accept_all(Server* server);
 static ErrorCode accept_one(Server* server, int* joined);
+static void accept_waiting(Server* server);
+static void attach_watcher(Server* server, int fd, const char* peer);
 static Remote* find_slot(Server* server, const Message* hello);
 static void send_end(Server* server);
 static const char* config_error_message(ErrorCode error);
@@ -96,6 +98,7 @@ int main(int argc, char** argv) {
     }
 
     while (error == ERR_OK && !interrupted && !server.failed && !sim_is_finished(&server.sim)) {
+        accept_waiting(&server);
         sim_tick(&server.sim);
         usleep(server.sim.display_delay_ms * 1000);
     }
@@ -166,6 +169,9 @@ static ErrorCode start_server(Server* server, const char* config_path, const cha
 static void stop_server(Server* server, Opened opened) {
     if (opened >= OPENED_SOCKET) {
         close(server->listen_fd);
+        if (server->logger.watcher_fd >= 0) {
+            close(server->logger.watcher_fd);
+        }
     }
     if (opened >= OPENED_REMOTES) {
         for (int i = 0; i < server->remotes_count; i++) {
@@ -235,6 +241,10 @@ static ErrorCode accept_one(Server* server, int* joined) {
 
     Message message;
     error = net_receive(fd, &message);
+    if (error == ERR_OK && message.type == MSG_WATCH) {
+        attach_watcher(server, fd, peer);
+        return ERR_OK;
+    }
     Remote* remote = error == ERR_OK ? find_slot(server, &message) : NULL;
     if (remote == NULL) {
         if (error != ERR_INTERRUPTED) {
@@ -269,6 +279,21 @@ static ErrorCode accept_one(Server* server, int* joined) {
         logger_write(&server->logger, "устройство %d подключилось (%s)", remote->index + 1, peer);
     }
     return ERR_OK;
+}
+
+static void accept_waiting(Server* server) {
+    int joined = 0;
+    while (net_has_client(server->listen_fd) && accept_one(server, &joined) == ERR_OK) {
+    }
+}
+
+// newer observer replaces the old one
+static void attach_watcher(Server* server, int fd, const char* peer) {
+    if (server->logger.watcher_fd >= 0) {
+        close(server->logger.watcher_fd);
+    }
+    server->logger.watcher_fd = fd;
+    logger_write(&server->logger, "наблюдатель подключился (%s)", peer);
 }
 
 // free slot for the role and index from hello, NULL if wrong or taken

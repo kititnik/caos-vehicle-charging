@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/select.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
@@ -41,6 +42,14 @@ ErrorCode net_accept(int listen_fd, int* fd, char* peer, size_t peer_size) {
     }
     snprintf(peer, peer_size, "%s:%d", inet_ntoa(client.sin_addr), ntohs(client.sin_port));
     return ERR_OK;
+}
+
+int net_has_client(int listen_fd) {
+    fd_set set;
+    FD_ZERO(&set);
+    FD_SET(listen_fd, &set);
+    struct timeval timeout = {0, 0};
+    return select(listen_fd + 1, &set, NULL, NULL, &timeout) > 0;
 }
 
 ErrorCode net_connect(const char* address, const char* port, int* fd) {

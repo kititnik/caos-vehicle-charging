@@ -11,7 +11,8 @@ typedef enum {
     MSG_TICK,
     MSG_ACTION,
     MSG_RESULT,
-    MSG_END
+    MSG_END,
+    MSG_WATCH
 } MessageType;
 
 // always sent whole, fields not needed by the type are zero

@@ -13,6 +13,7 @@ ErrorCode logger_init(Logger* logger, const int* now, const char* file_path) {
     }
     logger->console_fd = STDOUT_FILENO;
     logger->file_fd = -1;
+    logger->watcher_fd = -1;
     logger->now = now;
 
     if (file_path != NULL) {
@@ -60,5 +61,8 @@ void logger_write(const Logger* logger, const char* format, ...) {
     write(logger->console_fd, message, (size_t)length + 1);
     if (logger->file_fd >= 0) {
         write(logger->file_fd, message, (size_t)length + 1);
+    }
+    if (logger->watcher_fd >= 0) {
+        write(logger->watcher_fd, message, (size_t)length + 1);
     }
 }
