@@ -74,12 +74,11 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    // no SA_RESTART, so ctrl+c breaks out of accept and read
     struct sigaction action;
     memset(&action, 0, sizeof(action));
     action.sa_handler = on_interrupt;
     sigemptyset(&action.sa_mask);
-    if (sigaction(SIGINT, &action, NULL) != 0) {
+    if (sigaction(SIGINT, &action, NULL) != 0 || sigaction(SIGTERM, &action, NULL) != 0) {
         fprintf(stderr, "cannot install interrupt handler\n");
         return 1;
     }
@@ -113,7 +112,7 @@ int main(int argc, char** argv) {
 
     // clients get the final state and exit
     send_end(&server);
-    int code = interrupted ? 128 + SIGINT : (server.failed ? 1 : 0);
+    int code = interrupted ? 128 + interrupted : (server.failed ? 1 : 0);
     stop_server(&server, OPENED_SOCKET);
     return code;
 }
@@ -210,7 +209,6 @@ static ErrorCode subscribe_all(Server* server) {
     for (int i = 0; i < server->remotes_count; i++) {
         server->remotes[i].fd = -1;
         server->remotes[i].index = i < cars_count ? i : i - cars_count;
-        server->remotes[i].failed = &server->failed;
     }
 
     ErrorCode error = ERR_OK;
@@ -237,6 +235,7 @@ static ErrorCode accept_all(Server* server) {
 }
 
 // a bad client is just dropped, only a broken listening socket is an error
+// a gone car or charger can come back into its old slot
 static ErrorCode accept_one(Server* server, int* joined) {
     int fd;
     char peer[PEER_SIZE];
@@ -265,6 +264,7 @@ static ErrorCode accept_one(Server* server, int* joined) {
     message.type = MSG_WELCOME;
     message.role = role;
     message.index = remote->index;
+    message.now = server->sim.now;
     message.tick_duration = server->sim.tick_duration;
     if (role == ORDER_VEHICLE) {
         message.vehicle = server->config.cars[remote->index];
@@ -278,6 +278,9 @@ static ErrorCode accept_one(Server* server, int* joined) {
     }
 
     remote->fd = fd;
+    if (role == ORDER_CHARGER) {
+        server->config.chargers[remote->index].offline = 0;
+    }
     (*joined)++;
     if (role == ORDER_VEHICLE) {
         logger_write(&server->logger, "машина %d подключилась (%s)", remote->index + 1, peer);
@@ -372,7 +375,7 @@ static const char* end_reason(const Server* server) {
 }
 
 static void on_interrupt(int signum) {
-    interrupted = 1;
+    interrupted = signum;
 }
 
 static const char* config_error_message(ErrorCode error) {

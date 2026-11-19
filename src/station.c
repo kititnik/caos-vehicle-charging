@@ -95,7 +95,7 @@ static Charger* find_free_charger(Station* station, const Vehicle* vehicle) {
     Charger* best = NULL;
     for (int i = 0; i < station->chargers_count; i++) {
         Charger* charger = &station->chargers[i];
-        if (!charger_is_free(charger) || !charger_is_compatible(charger, vehicle)) {
+        if (charger->offline || !charger_is_free(charger) || !charger_is_compatible(charger, vehicle)) {
             continue;
         }
         if (best == NULL || is_better_charger(station, charger, best)) {
@@ -166,7 +166,7 @@ static void distribute_weighted(Station* station) {
         double total_weight = 0;
         for (int i = 0; i < station->chargers_count; i++) {
             Charger* charger = &station->chargers[i];
-            if (!charger_is_free(charger) &&
+            if (!charger_is_free(charger) && !charger->offline &&
                 charger->allocated_power < charger_get_max_accepted_power(charger, attached_vehicle(station, charger)) - EPS) {
                 total_weight += charger_weight(station, charger);
             }
@@ -179,7 +179,8 @@ static void distribute_weighted(Station* station) {
         for (int i = 0; i < station->chargers_count; i++) {
             Charger* charger = &station->chargers[i];
             const Vehicle* vehicle = attached_vehicle(station, charger);
-            if (vehicle == NULL || charger->allocated_power >= charger_get_max_accepted_power(charger, vehicle) - EPS) {
+            if (vehicle == NULL || charger->offline ||
+                charger->allocated_power >= charger_get_max_accepted_power(charger, vehicle) - EPS) {
                 continue;
             }
             double before = charger->allocated_power;
@@ -202,7 +203,7 @@ static void distribute_priority(Station* station) {
         Charger* first = NULL;
         for (int i = 0; i < station->chargers_count; i++) {
             Charger* charger = &station->chargers[i];
-            if (charger_is_free(charger) || charger->allocated_power > 0) {
+            if (charger_is_free(charger) || charger->offline || charger->allocated_power > 0) {
                 continue;
             }
             if (first == NULL ||

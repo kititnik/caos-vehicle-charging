@@ -5,11 +5,10 @@
 
 // server side of a participant that lives in a client
 typedef struct Remote {
+    // -1 while the client is gone
     int fd;
     // in cars or chargers array
     int index;
-    // shared by all, set by the first broken exchange
-    int* failed;
 } Remote;
 
 void remote_vehicle_on_tick(void* self, SimContext* sim);

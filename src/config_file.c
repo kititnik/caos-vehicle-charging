@@ -232,6 +232,7 @@ static ErrorCode parse_charger(Config* config, char** save) {
     charger->max_power = max_power;
     charger->allocated_power = 0;
     charger->vehicle_index = -1;
+    charger->offline = 0;
     config->chargers_count++;
     return ERR_OK;
 }

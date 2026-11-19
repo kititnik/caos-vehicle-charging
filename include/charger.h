@@ -16,6 +16,8 @@ typedef struct Charger {
 
     // index in cars array, -1 if free
     int vehicle_index;
+    // client is gone, gets no cars and no power
+    int offline;
 } Charger;
 
 void charger_on_tick(void* self, struct SimContext* sim);

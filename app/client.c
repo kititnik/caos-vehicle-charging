@@ -62,7 +62,7 @@ int main(int argc, char** argv) {
     }
 
     // time comes from the server with every message
-    int now = 0;
+    int now = message.now;
     Logger logger;
     logger_init(&logger, &now, NULL);
     int code = role == ORDER_VEHICLE ? run_vehicle(fd, &logger, &now, &message)
@@ -113,6 +113,8 @@ static int run_charger(int fd, Logger* logger, int* now, const Message* welcome)
     double tick_duration = welcome->tick_duration;
     Charger last = welcome->charger;
     logger_write(logger, "устройство %d: мощность %.1f кВт", last.id, last.max_power);
+    // after a reconnect the car may be plugged in already
+    last.vehicle_index = -1;
 
     Message message;
     while (net_receive(fd, &message) == ERR_OK) {
