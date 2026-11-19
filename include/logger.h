@@ -3,11 +3,13 @@
 
 #include "error_code.h"
 
+#define MAX_WATCHERS 16
+
 typedef struct Logger {
     int console_fd;
     int file_fd;
-    // observer socket or -1, not owned
-    int watcher_fd;
+    // observer sockets or -1, not owned
+    int watcher_fds[MAX_WATCHERS];
     // points at sim.now for timestamps
     const int* now;
 } Logger;

@@ -22,6 +22,8 @@ typedef struct Server {
     int remotes_count;
     int listen_fd;
     int failed;
+    // same slots as logger.watcher_fds
+    char watcher_peers[MAX_WATCHERS][PEER_SIZE];
 } Server;
 
 typedef enum {
@@ -41,6 +43,7 @@ static ErrorCode accept_all(Server* server);
 static ErrorCode accept_one(Server* server, int* joined);
 static void accept_waiting(Server* server);
 static void attach_watcher(Server* server, int fd, const char* peer);
+static void drop_gone_watchers(Server* server);
 static Remote* find_slot(Server* server, const Message* hello);
 static void send_end(Server* server);
 static const char* config_error_message(ErrorCode error);
@@ -99,6 +102,7 @@ int main(int argc, char** argv) {
 
     while (error == ERR_OK && !interrupted && !server.failed && !sim_is_finished(&server.sim)) {
         accept_waiting(&server);
+        drop_gone_watchers(&server);
         sim_tick(&server.sim);
         usleep(server.sim.display_delay_ms * 1000);
     }
@@ -169,8 +173,10 @@ static ErrorCode start_server(Server* server, const char* config_path, const cha
 static void stop_server(Server* server, Opened opened) {
     if (opened >= OPENED_SOCKET) {
         close(server->listen_fd);
-        if (server->logger.watcher_fd >= 0) {
-            close(server->logger.watcher_fd);
+        for (int i = 0; i < MAX_WATCHERS; i++) {
+            if (server->logger.watcher_fds[i] >= 0) {
+                close(server->logger.watcher_fds[i]);
+            }
         }
     }
     if (opened >= OPENED_REMOTES) {
@@ -283,17 +289,36 @@ static ErrorCode accept_one(Server* server, int* joined) {
 
 static void accept_waiting(Server* server) {
     int joined = 0;
-    while (net_has_client(server->listen_fd) && accept_one(server, &joined) == ERR_OK) {
+    while (net_can_read(server->listen_fd) && accept_one(server, &joined) == ERR_OK) {
     }
 }
 
-// newer observer replaces the old one
 static void attach_watcher(Server* server, int fd, const char* peer) {
-    if (server->logger.watcher_fd >= 0) {
-        close(server->logger.watcher_fd);
+    int* fds = server->logger.watcher_fds;
+    int slot = 0;
+    while (slot < MAX_WATCHERS && fds[slot] >= 0) {
+        slot++;
     }
-    server->logger.watcher_fd = fd;
+    if (slot == MAX_WATCHERS) {
+        logger_write(&server->logger, "наблюдатель %s отклонён: уже %d", peer, MAX_WATCHERS);
+        close(fd);
+        return;
+    }
+    fds[slot] = fd;
+    snprintf(server->watcher_peers[slot], PEER_SIZE, "%s", peer);
     logger_write(&server->logger, "наблюдатель подключился (%s)", peer);
+}
+
+// observers send nothing after watch, so readable means closed
+static void drop_gone_watchers(Server* server) {
+    int* fds = server->logger.watcher_fds;
+    for (int i = 0; i < MAX_WATCHERS; i++) {
+        if (fds[i] >= 0 && net_can_read(fds[i])) {
+            close(fds[i]);
+            fds[i] = -1;
+            logger_write(&server->logger, "наблюдатель отключился (%s)", server->watcher_peers[i]);
+        }
+    }
 }
 
 // free slot for the role and index from hello, NULL if wrong or taken
