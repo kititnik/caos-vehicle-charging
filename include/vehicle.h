@@ -6,6 +6,13 @@
 
 struct SimContext;
 
+// what a car wants to do in its turn
+typedef enum {
+    ACTION_NONE,
+    ACTION_ARRIVE,
+    ACTION_LEAVE
+} VehicleAction;
+
 typedef struct Vehicle {
     int id;
     // position in cars array
@@ -23,6 +30,9 @@ typedef struct Vehicle {
 } Vehicle;
 
 void vehicle_on_tick(void* self, struct SimContext* sim);
+
+VehicleAction vehicle_decide(const Vehicle* vehicle, int now);
+void vehicle_act(Vehicle* vehicle, VehicleAction action, struct SimContext* sim);
 
 int vehicle_charge(Vehicle* vehicle, double energy);
 

@@ -5,7 +5,7 @@
 #include "sim_context.h"
 #include "vehicle.h"
 
-// push energy into the car, free the charger once car is full
+// push energy into the car
 void charger_on_tick(void* self, SimContext* sim) {
     Charger* charger = (Charger*)self;
     if (charger_is_free(charger)) {
@@ -13,6 +13,11 @@ void charger_on_tick(void* self, SimContext* sim) {
     }
     Vehicle* vehicle = &sim->cars[charger->vehicle_index];
     int is_charged = vehicle_charge(vehicle, charger->allocated_power * sim->tick_duration);
+    charger_complete_tick(charger, vehicle, is_charged, sim);
+}
+
+// log the charge, free the charger once car is full
+void charger_complete_tick(Charger* charger, Vehicle* vehicle, int is_charged, SimContext* sim) {
     logger_write(sim->logger, "машина %d: заряд %.1f / %.1f кВт·ч", vehicle->id,
                  vehicle->current_charge, vehicle->target_charge);
     if (is_charged) {

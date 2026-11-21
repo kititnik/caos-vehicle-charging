@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # run from project root, binary is the first argument
-BIN="${1:-build/caos_named}"
+BIN="${1:-build/caos_vehicle_charging}"
 
 mkdir -p tests/out
 passed=0

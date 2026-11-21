@@ -5,8 +5,7 @@
 typedef enum {
     ORDER_VEHICLE,
     ORDER_STATION,
-    ORDER_CHARGER,
-    ORDER_COUNT
+    ORDER_CHARGER
 } TickOrder;
 
 #endif //TICK_ORDER_H
